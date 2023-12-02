@@ -1,0 +1,12 @@
+Name        A/D Pin Header #    Direction     RPi Pin Header #
+RESET-        Pin 1             ADC <-  Pi    GPIO 23   Pin 16
+GND           Pin 2             ADC <-> Pi    GND       Pin 20
+DB4/SERIW-    Pin 7             ADC <-  Pi    GPIO 15   Pin 10
+DB10/DIN      Pin 13            ADC <-  Pi    SPI1 MOSI Pin 38
+DB11/DOUT0    Pin 14            ADC ->  Pi    SPI1 MISO Pin 35
+DB12/DOUT1    Pin 15            ADC ->  Pi    GPIO 22   Pin 15
+SCKL/RD-      Pin 20            ADC <-  Pi    SPI1 SCLK Pin 40
+CS-           Pin 21            ADC <-  Pi    SPI1 CE0  Pin 12
+BUSY          Pin 25            ADC ->  Pi    GPIO 24   Pin 18
+CONVST        Pin 26            ADC <-  Pi    GPIO 25   Pin 22
+
