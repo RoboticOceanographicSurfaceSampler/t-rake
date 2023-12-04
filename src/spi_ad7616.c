@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <pigpio.h>
 
@@ -43,7 +44,7 @@ void initialize(self_t* self)
     self->spi_mosi_pin = SPI0_MOSI_Pin;
     self->spi_miso_pin = SPI0_MISO_Pin;
 
-    self->max_speed_hz = 10000;
+    self->max_speed_hz = 100000;
     self->min_period_usec = 1000000 / self->max_speed_hz;
     self->mode = 0;   // 0000 00<polarity><phase>  2 LSBs determine polarity and phase of clock.
 
@@ -51,7 +52,8 @@ void initialize(self_t* self)
     gpioSetMode(RESETPin, PI_OUTPUT);
     gpioSetMode(ADC_SER1W_Pin, PI_OUTPUT);
 
-    gpioWrite(ADC_SER1W_Pin, 0);
+    gpioWrite(ADC_SER1W_Pin, 1);        // 0 for 1-wire, 1 for 2-wire (doesn't seem to work, always 2-wire)
+    usleep(100);
     gpioWrite(RESETPin, 0);
     usleep(100);
     gpioWrite(RESETPin, 1);
@@ -100,18 +102,23 @@ void xfer2(self_t* self, unsigned count, unsigned short* outbuffer, unsigned sho
     // Always start with a conversion.
     printf("Starting transaction with a conversion\n");
     gpioWrite(ADC_CONVST_Pin, 1);
-    //while (gpioRead(ADC_BUSY_Pin) == 0)
+    //while (gpioRead(ADC_BUSY_Pin) == 1)
     //    usleep(1);
     gpioWrite(ADC_CONVST_Pin, 0);
     while (gpioRead(ADC_BUSY_Pin) != 0)
         usleep(1);
 
-    printf("Selecting ADC board for transaction\n");
+    printf("Selecting ADC board for transaction with sclk period %u us\n", self->min_period_usec);
+    struct timespec tpStart;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tpStart);
+    clock_t start = clock();
+
     gpioWrite(self->spi_mosi_pin, 1);
-    gpioWrite(self->spi_cs_pin, 0);
 
     for (unsigned _ = 0; _ < count; _++)
     {
+        gpioWrite(self->spi_cs_pin, 0);
+
         unsigned value = *outbuffer;
         printf("Sending: %04x", value);
         unsigned short result0 = 0;
@@ -123,16 +130,17 @@ void xfer2(self_t* self, unsigned count, unsigned short* outbuffer, unsigned sho
             unsigned bit_setting = (value & bitmask) != 0 ? 1 : 0;
             gpioWrite(self->spi_mosi_pin, bit_setting);
             gpioWrite(self->spi_sclk_pin, 0);
-            usleep(self->min_period_usec / 2);
+            //usleep(self->min_period_usec / 2);
             if (gpioRead(self->spi_miso_pin) != 0)
                 result0 |= bitmask;
             if (gpioRead(ADC_SDOB_Pin) != 0)
                 result1 |= bitmask;
             gpioWrite(self->spi_sclk_pin, 1);
-            usleep(self->min_period_usec / 2);
+            //usleep(self->min_period_usec / 2);
 
             bitmask = bitmask >> 1;
         }
+        gpioWrite(self->spi_cs_pin, 1);
 
         *inbuffer0 = result0;
         *inbuffer1 = result1;
@@ -143,8 +151,15 @@ void xfer2(self_t* self, unsigned count, unsigned short* outbuffer, unsigned sho
         inbuffer1++;
     }
 
-    printf("Deselecting ADC board, transaction done\n\n");
-    spi_idle(self);
+    //spi_idle(self);
+
+    struct timespec tpEnd;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tpEnd);
+    clock_t end = clock();
+	long t_diff = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
+
+    double elapsed = (double)(end - start);
+    printf("Deselecting ADC board, transaction done in %lf ms, %lu us\n\n", elapsed * 1000.0 / (double)CLOCKS_PER_SEC, t_diff);
 }
 /*
 */
