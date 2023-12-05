@@ -30,23 +30,15 @@ typedef struct {
     unsigned spi_sclk_pin;
     unsigned spi_mosi_pin;
     unsigned spi_miso_pin;
-
-    unsigned max_speed_hz;
-    unsigned min_period_usec;
-    unsigned mode;
 } self_t;
 
-void initialize(self_t* self)
+void spi_initialize(self_t* self)
 {
     // Default to bus 0, device 0
     self->spi_cs_pin = SPI0_CS0_Pin;
     self->spi_sclk_pin = SPI0_SCLK_Pin;
     self->spi_mosi_pin = SPI0_MOSI_Pin;
     self->spi_miso_pin = SPI0_MISO_Pin;
-
-    self->max_speed_hz = 100000;
-    self->min_period_usec = 1000000 / self->max_speed_hz;
-    self->mode = 0;   // 0000 00<polarity><phase>  2 LSBs determine polarity and phase of clock.
 
     printf("Resetting the A/D");
     gpioSetMode(RESETPin, PI_OUTPUT);
@@ -97,18 +89,16 @@ void spi_open(self_t* self, unsigned bus, unsigned device)
     spi_idle(self);
 }
 
-void xfer2(self_t* self, unsigned count, unsigned short* outbuffer, unsigned short* inbuffer0, unsigned short* inbuffer1)
+void spi_xfer2(self_t* self, unsigned count, unsigned short* outbuffer, unsigned short* inbuffer0, unsigned short* inbuffer1)
 {
     // Always start with a conversion.
     printf("Starting transaction with a conversion\n");
     gpioWrite(ADC_CONVST_Pin, 1);
-    //while (gpioRead(ADC_BUSY_Pin) == 1)
-    //    usleep(1);
     gpioWrite(ADC_CONVST_Pin, 0);
     while (gpioRead(ADC_BUSY_Pin) != 0)
         usleep(1);
 
-    printf("Selecting ADC board for transaction with sclk period %u us\n", self->min_period_usec);
+    // Instrument for elapsed time.
     struct timespec tpStart;
     clock_gettime(CLOCK_MONOTONIC_RAW, &tpStart);
     clock_t start = clock();
@@ -130,13 +120,11 @@ void xfer2(self_t* self, unsigned count, unsigned short* outbuffer, unsigned sho
             unsigned bit_setting = (value & bitmask) != 0 ? 1 : 0;
             gpioWrite(self->spi_mosi_pin, bit_setting);
             gpioWrite(self->spi_sclk_pin, 0);
-            //usleep(self->min_period_usec / 2);
             if (gpioRead(self->spi_miso_pin) != 0)
                 result0 |= bitmask;
             if (gpioRead(ADC_SDOB_Pin) != 0)
                 result1 |= bitmask;
             gpioWrite(self->spi_sclk_pin, 1);
-            //usleep(self->min_period_usec / 2);
 
             bitmask = bitmask >> 1;
         }
@@ -151,15 +139,14 @@ void xfer2(self_t* self, unsigned count, unsigned short* outbuffer, unsigned sho
         inbuffer1++;
     }
 
-    //spi_idle(self);
-
+    // Instrument for elapsed time.
     struct timespec tpEnd;
     clock_gettime(CLOCK_MONOTONIC_RAW, &tpEnd);
     clock_t end = clock();
-	long t_diff = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
-
     double elapsed = (double)(end - start);
-    printf("Deselecting ADC board, transaction done in %lf ms, %lu us\n\n", elapsed * 1000.0 / (double)CLOCKS_PER_SEC, t_diff);
+	long tpElapsed = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
+
+    printf("Transaction used %lf ms CPU, done in %lu us\n\n", elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
 }
 /*
 */
@@ -171,10 +158,8 @@ int main(int argc, char *argv[])
    printf("Initialized pigpio\n");
 
    self_t self;
-   initialize(&self);
+   spi_initialize(&self);
    spi_open(&self, 1, 0);
-   self.max_speed_hz = 10000;
-   self.mode = 0;   // 0000 00<polarity><phase>  2 LSBs determine polarity and phase of clock.
 
     unsigned short outbuffer[16];
     unsigned short inbuffer0[16];
@@ -182,7 +167,7 @@ int main(int argc, char *argv[])
 
     // Change channel register to select the self-test channel (0xbbbb and 0x5555)
     outbuffer[0] = 0x86bb;
-    xfer2(&self, 1, outbuffer, inbuffer0, inbuffer1);
+    spi_xfer2(&self, 1, outbuffer, inbuffer0, inbuffer1);
 
     // Read all registers back, just for display
     outbuffer[0] = 0x0400;
@@ -192,23 +177,23 @@ int main(int argc, char *argv[])
     outbuffer[4] = 0x0c00;
     outbuffer[5] = 0x0e00;
     outbuffer[6] = 0x0e00;
-    xfer2(&self, 7, outbuffer, inbuffer0, inbuffer1);
+    spi_xfer2(&self, 7, outbuffer, inbuffer0, inbuffer1);
 
     // Read the selected self-test conversion a few times
     outbuffer[0] = 0x0000;
     outbuffer[1] = 0x0000;
     outbuffer[2] = 0x0000;
-    xfer2(&self, 3, outbuffer, inbuffer0, inbuffer1);
+    spi_xfer2(&self, 3, outbuffer, inbuffer0, inbuffer1);
     
     // Change channel register to select the channel 0 for both A and B
     outbuffer[0] = 0x8600;
-    xfer2(&self, 1, outbuffer, inbuffer0, inbuffer1);
+    spi_xfer2(&self, 1, outbuffer, inbuffer0, inbuffer1);
 
     outbuffer[0] = 0x0000;
     outbuffer[1] = 0x0000;
     outbuffer[2] = 0x0000;
     outbuffer[3] = 0x0000;
-    xfer2(&self, 4, outbuffer, inbuffer0, inbuffer1);
+    spi_xfer2(&self, 4, outbuffer, inbuffer0, inbuffer1);
 
     // Set up a sequence to read all 8 pairs of registers.  Enable burst mode (all conversion with one CONVST) and sequnce mode (sequencer enabled)
     outbuffer[0] = 0xc000;
@@ -220,7 +205,12 @@ int main(int argc, char *argv[])
     outbuffer[6] = 0xcc66;
     outbuffer[7] = 0xcf77;
     outbuffer[8] = 0x8460;
-    xfer2(&self, 9, outbuffer, inbuffer0, inbuffer1);
+    // Set range for all channels the same.
+    outbuffer[9]  = 0x88aa;
+    outbuffer[10] = 0x8aaa;
+    outbuffer[11] = 0x8caa;
+    outbuffer[12] = 0x8eaa;
+    spi_xfer2(&self, 13, outbuffer, inbuffer0, inbuffer1);
 
     // Read the selected conversion continuously
     while (1)
@@ -233,7 +223,7 @@ int main(int argc, char *argv[])
         outbuffer[5] = 0x0000;
         outbuffer[6] = 0x0000;
         outbuffer[7] = 0x0000;
-        xfer2(&self, 8, outbuffer, inbuffer0, inbuffer1);
+        spi_xfer2(&self, 8, outbuffer, inbuffer0, inbuffer1);
         usleep(500000);
     }
 
