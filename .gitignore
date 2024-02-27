@@ -52,3 +52,5 @@ Mkfile.old
 dkms.conf
 src/spi_7616
 src/fc
+src/spi
+src/tr

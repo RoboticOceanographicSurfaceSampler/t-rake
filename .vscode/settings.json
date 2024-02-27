@@ -4,6 +4,9 @@
         "unistd.h": "c",
         "stdlib.h": "c",
         "stdio.h": "c",
-        "getopt_posix.h": "c"
+        "getopt_posix.h": "c",
+        "spidev.h": "c",
+        "spi.h": "c",
+        "ioctl.h": "c"
     }
 }

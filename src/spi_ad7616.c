@@ -34,17 +34,17 @@ typedef struct {
 
 void spi_initialize(self_t* self)
 {
-    // Default to bus 0, device 0
-    self->spi_cs_pin = SPI0_CS0_Pin;
-    self->spi_sclk_pin = SPI0_SCLK_Pin;
-    self->spi_mosi_pin = SPI0_MOSI_Pin;
-    self->spi_miso_pin = SPI0_MISO_Pin;
+    // Default to bus 1, device 0
+    self->spi_cs_pin = SPI1_CS0_Pin;
+    self->spi_sclk_pin = SPI1_SCLK_Pin;
+    self->spi_mosi_pin = SPI1_MOSI_Pin;
+    self->spi_miso_pin = SPI1_MISO_Pin;
 
     printf("Resetting the A/D");
     gpioSetMode(RESETPin, PI_OUTPUT);
     gpioSetMode(ADC_SER1W_Pin, PI_OUTPUT);
 
-    gpioWrite(ADC_SER1W_Pin, 1);        // 0 for 1-wire, 1 for 2-wire (doesn't seem to work, always 2-wire)
+    gpioWrite(ADC_SER1W_Pin, 0);        // 0 for 1-wire, 1 for 2-wire (doesn't seem to work, always 2-wire)
     usleep(100);
     gpioWrite(RESETPin, 0);
     usleep(100);
@@ -59,6 +59,155 @@ void spi_idle(self_t* self)
     gpioWrite(self->spi_cs_pin, 1);
     gpioWrite(self->spi_sclk_pin, 1);
     gpioWrite(self->spi_mosi_pin, 0);
+}
+
+void spi_writeregister(self_t* self, unsigned address, unsigned value)
+{
+    // Always start with a conversion.
+    printf("Starting Write to register %d (%d) with a conversion\n", address, value);
+    gpioWrite(ADC_CONVST_Pin, 1);
+    gpioWrite(ADC_CONVST_Pin, 0);
+    while (gpioRead(ADC_BUSY_Pin) != 0)
+        usleep(1);
+
+    // Instrument for elapsed time.
+    struct timespec tpStart;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tpStart);
+    clock_t start = clock();
+
+    gpioWrite(self->spi_mosi_pin, 1);
+    gpioWrite(self->spi_cs_pin, 0);
+
+    unsigned result = 0;
+    unsigned bitmask = 1 << 15;
+    unsigned senddata = ((address & 0x3f) | 0x40) << 9 | (value & 0x1ff);
+
+    gpioWrite(self->spi_cs_pin, 0);
+    for (unsigned _ = 0; _ < 16; _++)
+    {
+        unsigned bit_setting = (senddata & bitmask) != 0 ? 1 : 0;
+        gpioWrite(self->spi_mosi_pin, bit_setting);
+        gpioWrite(self->spi_sclk_pin, 0);
+        if (gpioRead(self->spi_miso_pin) != 0)
+            result |= bitmask;
+        gpioWrite(self->spi_sclk_pin, 1);
+
+        bitmask = bitmask >> 1;
+    }
+    gpioWrite(self->spi_cs_pin, 1);
+
+    // Instrument for elapsed time.
+    struct timespec tpEnd;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tpEnd);
+    clock_t end = clock();
+    double elapsed = (double)(end - start);
+	long tpElapsed = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
+
+    printf("Register write used %lf ms CPU, done in %lu us\n\n", elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
+}
+
+unsigned spi_readregister(self_t* self, unsigned address)
+{
+    unsigned result = 0;
+    unsigned bitmask = 1 << 15;
+    unsigned senddata = (address & 0x3f) << 9;
+
+    gpioWrite(self->spi_cs_pin, 0);
+    for (unsigned _ = 0; _ < 16; _++)
+    {
+        unsigned bit_setting = (senddata & bitmask) != 0 ? 1 : 0;
+        gpioWrite(self->spi_mosi_pin, bit_setting);
+        gpioWrite(self->spi_sclk_pin, 0);
+        if (gpioRead(self->spi_miso_pin) != 0)
+            result |= bitmask;
+        gpioWrite(self->spi_sclk_pin, 1);
+
+        bitmask = bitmask >> 1;
+    }
+    gpioWrite(self->spi_cs_pin, 1);
+
+    spi_idle(self);
+
+    printf("Read register %d: %04x\n", address, result);
+    return result;
+}
+
+void spi_readreg(self_t* self, unsigned count, unsigned* addresses, unsigned* values)
+{
+    // Always start with a conversion.
+    printf("Starting Read from %d registers\n", count);
+    gpioWrite(ADC_CONVST_Pin, 1);
+    gpioWrite(ADC_CONVST_Pin, 0);
+    while (gpioRead(ADC_BUSY_Pin) != 0)
+        usleep(1);
+
+    gpioWrite(self->spi_mosi_pin, 1);
+    gpioWrite(self->spi_cs_pin, 0);
+
+    unsigned* registeraddress = addresses;
+    unsigned* registervalue = values;
+    int throwaway = 1;
+    for (unsigned registerIndex = 0; registerIndex < count; registerIndex++, registeraddress++)
+    {
+        unsigned value = spi_readregister(self, *registeraddress);
+        if (!throwaway)
+        {
+            *registervalue = value;
+            registervalue++;
+        }
+        throwaway = 0;
+    }
+
+    // We retrieve the last register value with a no-op read.
+    *registervalue = spi_readregister(self, 0);
+    registervalue++;
+}
+
+void spi_readconversion(self_t* self, unsigned count, unsigned* conversions)
+{
+    // Always start with a conversion.
+    gpioWrite(ADC_CONVST_Pin, 1);
+    gpioWrite(ADC_CONVST_Pin, 0);
+
+    // Instrument for elapsed time.
+    struct timespec tpStart;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tpStart);
+    clock_t start = clock();
+
+    gpioWrite(self->spi_mosi_pin, 1);
+    gpioWrite(self->spi_cs_pin, 0);
+
+    unsigned* conversion = conversions;
+    for (unsigned _ = 0; _ < count; _++)
+    {
+        unsigned result = 0;
+        unsigned bitmask = 1 << 31;
+
+        gpioWrite(self->spi_mosi_pin, 0);
+        for (unsigned __ = 0; __ < 32; __++)
+        {
+            gpioWrite(self->spi_sclk_pin, 0);
+            if (gpioRead(self->spi_miso_pin) != 0)
+                result |= bitmask;
+            gpioWrite(self->spi_sclk_pin, 1);
+
+            bitmask = bitmask >> 1;
+        }
+
+        *conversion = result;
+        conversion++;
+    }
+
+    spi_idle(self);
+
+    // Instrument for elapsed time.
+    struct timespec tpEnd;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tpEnd);
+    clock_t end = clock();
+    double elapsed = (double)(end - start);
+	long tpElapsed = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
+
+    printf("%d conversions used %lf ms CPU, done in %lu us\n\n", count, elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
 }
 
 void spi_open(self_t* self, unsigned bus, unsigned device)
@@ -150,7 +299,7 @@ void spi_xfer2(self_t* self, unsigned count, unsigned short* outbuffer, unsigned
 }
 /*
 */
-int main(int argc, char *argv[])
+int main2(int argc, char *argv[])
 {
    printf("Starting\n");
 
@@ -228,4 +377,48 @@ int main(int argc, char *argv[])
     }
 
    gpioTerminate();
+}
+
+/*
+*/
+int main(int argc, char *argv[])
+{
+    printf("Starting\n");
+
+    if (gpioInitialise()<0) return 1;
+    printf("Initialized pigpio\n");
+
+    self_t self;
+    spi_initialize(&self);
+    spi_open(&self, 1, 0);
+
+    unsigned  outbuffer[16];
+    unsigned  inbuffer[16];
+
+    spi_writeregister(&self, 4, 0x55);
+    spi_writeregister(&self, 5, 0x55);
+    spi_writeregister(&self, 6, 0x55);
+    spi_writeregister(&self, 7, 0x55);
+    spi_writeregister(&self, 3, 0x00);
+
+    outbuffer[0] = 0x02;
+    outbuffer[1] = 0x03;
+    outbuffer[2] = 0x04;
+    outbuffer[3] = 0x05;
+    outbuffer[4] = 0x06;
+    outbuffer[5] = 0x07;
+    spi_readreg(&self, 6, outbuffer, inbuffer);
+
+    spi_readconversion(&self, 8, inbuffer);
+
+    for (int i = 0; i < 8; i++)
+    {
+        unsigned conversion = inbuffer[i];
+        unsigned aconv = (conversion >> 16) & 0x0000ffff;
+        unsigned bconv = (conversion & 0x0000ffff);
+        printf("Channel %dA = %d (%04x),  %dB = %d (%04x)\n", i, aconv, aconv, i, bconv, bconv);
+
+    }
+
+    gpioTerminate();
 }
