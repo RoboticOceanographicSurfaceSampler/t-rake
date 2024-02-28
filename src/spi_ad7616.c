@@ -1,3 +1,13 @@
+//
+// Low-level bit-banged SPI interface to the AD7616 ADC chip.
+// If this is written in Python, it is too slow.  Much too slow.
+// If either Python or C/C++ use the SPI drivers at the O/S level,
+// they are limited to 8-bit transfer.  The AD7616 needs 32-bit
+// transfers in order to pack two 16-bit conversions into each read.
+//
+// Build with
+//gcc -Wall -pthread -o spi spi_ad7616.c -lpigpio -lrt
+//
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -32,8 +42,16 @@ typedef struct {
     unsigned spi_miso_pin;
 } self_t;
 
-void spi_initialize(self_t* self)
+int spi_initialize(self_t* self)
 {
+    int returnValue = gpioInitialise();
+    if (returnValue < 0)
+    {
+        printf("Initialization of pigpio failed with error %d\n", returnValue);
+        return returnValue;
+    }
+    printf("Initialized pigpio\n");
+
     // Default to bus 1, device 0
     self->spi_cs_pin = SPI1_CS0_Pin;
     self->spi_sclk_pin = SPI1_SCLK_Pin;
@@ -50,6 +68,8 @@ void spi_initialize(self_t* self)
     usleep(100);
     gpioWrite(RESETPin, 1);
     usleep(100);
+
+    return 0;
 }
 
 void spi_idle(self_t* self)
@@ -59,6 +79,39 @@ void spi_idle(self_t* self)
     gpioWrite(self->spi_cs_pin, 1);
     gpioWrite(self->spi_sclk_pin, 1);
     gpioWrite(self->spi_mosi_pin, 0);
+}
+
+void spi_open(self_t* self, unsigned bus, unsigned device)
+{
+    if (bus == 0)
+    {
+        self->spi_cs_pin = (device == 0) ? SPI0_CS0_Pin : SPI0_CS1_Pin;
+        self->spi_sclk_pin = SPI0_SCLK_Pin;
+        self->spi_mosi_pin = SPI0_MOSI_Pin;
+        self->spi_miso_pin = SPI0_MISO_Pin;
+    }
+    else
+    {
+        self->spi_cs_pin = (device == 0) ? SPI1_CS0_Pin : SPI1_CS1_Pin;
+        self->spi_sclk_pin = SPI1_SCLK_Pin;
+        self->spi_mosi_pin = SPI1_MOSI_Pin;
+        self->spi_miso_pin = SPI1_MISO_Pin;
+    }
+
+    gpioSetMode(ADC_BUSY_Pin, PI_INPUT);
+    gpioSetMode(ADC_CONVST_Pin, PI_OUTPUT);
+    gpioSetMode(self->spi_cs_pin, PI_OUTPUT);
+    gpioSetMode(self->spi_sclk_pin, PI_OUTPUT);
+    gpioSetMode(self->spi_mosi_pin, PI_OUTPUT);
+    gpioSetMode(self->spi_miso_pin, PI_INPUT);
+    gpioSetMode(ADC_SDOB_Pin, PI_INPUT);
+
+    spi_idle(self);
+}
+
+void spi_terminate(self_t* self)
+{
+    gpioTerminate();
 }
 
 void spi_writeregister(self_t* self, unsigned address, unsigned value)
@@ -168,6 +221,8 @@ void spi_readconversion(self_t* self, unsigned count, unsigned* conversions)
     // Always start with a conversion.
     gpioWrite(ADC_CONVST_Pin, 1);
     gpioWrite(ADC_CONVST_Pin, 0);
+    while (gpioRead(ADC_BUSY_Pin) != 0)
+        usleep(1);
 
     // Instrument for elapsed time.
     struct timespec tpStart;
@@ -210,173 +265,41 @@ void spi_readconversion(self_t* self, unsigned count, unsigned* conversions)
     printf("%d conversions used %lf ms CPU, done in %lu us\n\n", count, elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
 }
 
-void spi_open(self_t* self, unsigned bus, unsigned device)
+void spi_definesequence(self_t* self, unsigned count, unsigned* Achannels, unsigned* Bchannels)
 {
-    if (bus == 0)
+    if (count > 32)
     {
-        self->spi_cs_pin = (device == 0) ? SPI0_CS0_Pin : SPI0_CS1_Pin;
-        self->spi_sclk_pin = SPI0_SCLK_Pin;
-        self->spi_mosi_pin = SPI0_MOSI_Pin;
-        self->spi_miso_pin = SPI0_MISO_Pin;
-    }
-    else
-    {
-        self->spi_cs_pin = (device == 0) ? SPI1_CS0_Pin : SPI1_CS1_Pin;
-        self->spi_sclk_pin = SPI1_SCLK_Pin;
-        self->spi_mosi_pin = SPI1_MOSI_Pin;
-        self->spi_miso_pin = SPI1_MISO_Pin;
+        printf("spi_definesequence cannot define a sequence with %d elements, 32 max\n", count);
+        return;
     }
 
-    gpioSetMode(ADC_BUSY_Pin, PI_INPUT);
-    gpioSetMode(ADC_CONVST_Pin, PI_OUTPUT);
-    gpioSetMode(self->spi_cs_pin, PI_OUTPUT);
-    gpioSetMode(self->spi_sclk_pin, PI_OUTPUT);
-    gpioSetMode(self->spi_mosi_pin, PI_OUTPUT);
-    gpioSetMode(self->spi_miso_pin, PI_INPUT);
-    gpioSetMode(ADC_SDOB_Pin, PI_INPUT);
+    unsigned sequencer = 0x20;
 
-    spi_idle(self);
+    for (unsigned i = 0; i < count; i++, sequencer++, Achannels++, Bchannels++)
+    {
+        unsigned ssren = 0;
+        if (i + 1 == count)
+            ssren = 0x100;
+
+        unsigned channeldata = (*Bchannels & 0xf) << 4 | (*Achannels & 0xf) | ssren;
+        spi_writeregister(self, sequencer, channeldata);
+    }
+
+    // Read the configuration register, set BURSTEN and SEQEN, write it back.
+    unsigned configuration = spi_readregister(self, 2);
+    configuration |= (0x40 | 0x20);     // BURSTEN with SEQEN.
+    spi_writeregister(self, 2, configuration);
 }
 
-void spi_xfer2(self_t* self, unsigned count, unsigned short* outbuffer, unsigned short* inbuffer0, unsigned short* inbuffer1)
+unsigned spi_convertpair(self_t* self, unsigned channelA, unsigned channelB)
 {
-    // Always start with a conversion.
-    printf("Starting transaction with a conversion\n");
-    gpioWrite(ADC_CONVST_Pin, 1);
-    gpioWrite(ADC_CONVST_Pin, 0);
-    while (gpioRead(ADC_BUSY_Pin) != 0)
-        usleep(1);
+    unsigned channeldata = (channelB & 0xf) << 4 | (channelA & 0xf);
+    spi_writeregister(self, 3, channeldata);
 
-    // Instrument for elapsed time.
-    struct timespec tpStart;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &tpStart);
-    clock_t start = clock();
+    unsigned conversion;
+    spi_readconversion(self, 1, &conversion);
 
-    gpioWrite(self->spi_mosi_pin, 1);
-
-    for (unsigned _ = 0; _ < count; _++)
-    {
-        gpioWrite(self->spi_cs_pin, 0);
-
-        unsigned value = *outbuffer;
-        printf("Sending: %04x", value);
-        unsigned short result0 = 0;
-        unsigned short result1 = 0;
-
-        unsigned short bitmask = 1 << 15;
-        for (unsigned __ = 0; __ < 16; __++)
-        {
-            unsigned bit_setting = (value & bitmask) != 0 ? 1 : 0;
-            gpioWrite(self->spi_mosi_pin, bit_setting);
-            gpioWrite(self->spi_sclk_pin, 0);
-            if (gpioRead(self->spi_miso_pin) != 0)
-                result0 |= bitmask;
-            if (gpioRead(ADC_SDOB_Pin) != 0)
-                result1 |= bitmask;
-            gpioWrite(self->spi_sclk_pin, 1);
-
-            bitmask = bitmask >> 1;
-        }
-        gpioWrite(self->spi_cs_pin, 1);
-
-        *inbuffer0 = result0;
-        *inbuffer1 = result1;
-        printf("   Receiving   0: %04x  1: %04x\n", result0, result1);
-
-        outbuffer++;
-        inbuffer0++;
-        inbuffer1++;
-    }
-
-    // Instrument for elapsed time.
-    struct timespec tpEnd;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &tpEnd);
-    clock_t end = clock();
-    double elapsed = (double)(end - start);
-	long tpElapsed = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
-
-    printf("Transaction used %lf ms CPU, done in %lu us\n\n", elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
-}
-/*
-*/
-int main2(int argc, char *argv[])
-{
-   printf("Starting\n");
-
-   if (gpioInitialise()<0) return 1;
-   printf("Initialized pigpio\n");
-
-   self_t self;
-   spi_initialize(&self);
-   spi_open(&self, 1, 0);
-
-    unsigned short outbuffer[16];
-    unsigned short inbuffer0[16];
-    unsigned short inbuffer1[16];
-
-    // Change channel register to select the self-test channel (0xbbbb and 0x5555)
-    outbuffer[0] = 0x86bb;
-    spi_xfer2(&self, 1, outbuffer, inbuffer0, inbuffer1);
-
-    // Read all registers back, just for display
-    outbuffer[0] = 0x0400;
-    outbuffer[1] = 0x0600;
-    outbuffer[2] = 0x0800;
-    outbuffer[3] = 0x0a00;
-    outbuffer[4] = 0x0c00;
-    outbuffer[5] = 0x0e00;
-    outbuffer[6] = 0x0e00;
-    spi_xfer2(&self, 7, outbuffer, inbuffer0, inbuffer1);
-
-    // Read the selected self-test conversion a few times
-    outbuffer[0] = 0x0000;
-    outbuffer[1] = 0x0000;
-    outbuffer[2] = 0x0000;
-    spi_xfer2(&self, 3, outbuffer, inbuffer0, inbuffer1);
-    
-    // Change channel register to select the channel 0 for both A and B
-    outbuffer[0] = 0x8600;
-    spi_xfer2(&self, 1, outbuffer, inbuffer0, inbuffer1);
-
-    outbuffer[0] = 0x0000;
-    outbuffer[1] = 0x0000;
-    outbuffer[2] = 0x0000;
-    outbuffer[3] = 0x0000;
-    spi_xfer2(&self, 4, outbuffer, inbuffer0, inbuffer1);
-
-    // Set up a sequence to read all 8 pairs of registers.  Enable burst mode (all conversion with one CONVST) and sequnce mode (sequencer enabled)
-    outbuffer[0] = 0xc000;
-    outbuffer[1] = 0xc211;
-    outbuffer[2] = 0xc422;
-    outbuffer[3] = 0xc633;
-    outbuffer[4] = 0xc844;
-    outbuffer[5] = 0xca55;
-    outbuffer[6] = 0xcc66;
-    outbuffer[7] = 0xcf77;
-    outbuffer[8] = 0x8460;
-    // Set range for all channels the same.
-    outbuffer[9]  = 0x88aa;
-    outbuffer[10] = 0x8aaa;
-    outbuffer[11] = 0x8caa;
-    outbuffer[12] = 0x8eaa;
-    spi_xfer2(&self, 13, outbuffer, inbuffer0, inbuffer1);
-
-    // Read the selected conversion continuously
-    while (1)
-    {
-        outbuffer[0] = 0x0000;
-        outbuffer[1] = 0x0000;
-        outbuffer[2] = 0x0000;
-        outbuffer[3] = 0x0000;
-        outbuffer[4] = 0x0000;
-        outbuffer[5] = 0x0000;
-        outbuffer[6] = 0x0000;
-        outbuffer[7] = 0x0000;
-        spi_xfer2(&self, 8, outbuffer, inbuffer0, inbuffer1);
-        usleep(500000);
-    }
-
-   gpioTerminate();
+    return conversion;
 }
 
 /*
@@ -385,11 +308,8 @@ int main(int argc, char *argv[])
 {
     printf("Starting\n");
 
-    if (gpioInitialise()<0) return 1;
-    printf("Initialized pigpio\n");
-
     self_t self;
-    spi_initialize(&self);
+    if (spi_initialize(&self) < 0) return 1;
     spi_open(&self, 1, 0);
 
     unsigned  outbuffer[16];
@@ -409,16 +329,40 @@ int main(int argc, char *argv[])
     outbuffer[5] = 0x07;
     spi_readreg(&self, 6, outbuffer, inbuffer);
 
-    spi_readconversion(&self, 8, inbuffer);
-
-    for (int i = 0; i < 8; i++)
     {
-        unsigned conversion = inbuffer[i];
+        unsigned channelA = 0;
+        unsigned channelB = 0;
+        printf("Reading conversion pair (A%d, B%d)\n", channelA, channelB);
+        unsigned conversion = spi_convertpair(&self, channelA, channelB);
         unsigned aconv = (conversion >> 16) & 0x0000ffff;
+        aconv = (aconv + 0x8000) & 0x0000ffff;
         unsigned bconv = (conversion & 0x0000ffff);
-        printf("Channel %dA = %d (%04x),  %dB = %d (%04x)\n", i, aconv, aconv, i, bconv, bconv);
-
+        bconv = (bconv + 0x8000) & 0x0000ffff;
+        printf("Channel %dA = %d (%04x),  %dB = %d (%04x)\n", channelA, aconv, aconv, channelB, bconv, bconv);
     }
 
-    gpioTerminate();
+    printf("Defining conversion sequence\n");
+    unsigned Achannels[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    unsigned Bchannels[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    spi_definesequence(&self, 8, Achannels, Bchannels);
+
+    for (int _ = 0; _ < 50; _++)
+    {
+        spi_readconversion(&self, 8, inbuffer);
+
+        for (int i = 0; i < 8; i++)
+        {
+            unsigned conversion = inbuffer[i];
+
+            unsigned aconv = (conversion >> 16) & 0x0000ffff;
+            aconv = (aconv + 0x8000) & 0x0000ffff;
+            unsigned bconv = (conversion & 0x0000ffff);
+            bconv = (bconv + 0x8000) & 0x0000ffff;
+            printf("Channel %dA = %d (%04x),  %dB = %d (%04x)\n", i, aconv, aconv, i, bconv, bconv);
+        }
+
+        usleep(100000);
+    }
+
+    spi_terminate(&self);
 }
