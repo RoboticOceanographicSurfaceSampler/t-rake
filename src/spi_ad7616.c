@@ -342,13 +342,13 @@ int main(int argc, char *argv[])
     }
 
     printf("Defining conversion sequence\n");
-    unsigned Achannels[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-    unsigned Bchannels[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-    spi_definesequence(&self, 8, Achannels, Bchannels);
+    unsigned Achannels[9] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    unsigned Bchannels[9] = {0, 1, 2, 3, 4, 5, 6, 7, 9};
+    spi_definesequence(&self, 9, Achannels, Bchannels);
 
     for (int _ = 0; _ < 50; _++)
     {
-        spi_readconversion(&self, 8, inbuffer);
+        spi_readconversion(&self, 9, inbuffer);
 
         for (int i = 0; i < 8; i++)
         {
@@ -360,6 +360,12 @@ int main(int argc, char *argv[])
             bconv = (bconv + 0x8000) & 0x0000ffff;
             printf("Channel %dA = %d (%04x),  %dB = %d (%04x)\n", i, aconv, aconv, i, bconv, bconv);
         }
+
+        unsigned conversion = inbuffer[8];
+
+        unsigned aconv = (conversion >> 16) & 0x0000ffff;
+        unsigned bconv = (conversion & 0x0000ffff);
+        printf("Channel %dA = %d (%04x),  %dB = %d (%04x)\n", 8, aconv, aconv, 8, bconv, bconv);
 
         usleep(100000);
     }
