@@ -302,6 +302,52 @@ unsigned spi_convertpair(self_t* self, unsigned channelA, unsigned channelB)
     return conversion;
 }
 
+//
+// Compute the Vcc diagnostic channel in Volts, from the Vref (volts)
+// and the VccCode value received by converting the Vcc channel.
+//
+// From the data sheet:
+// VccCode = ((4 * Vcc) - Vref) * 32,768 / (5 * Vref)
+//
+// Working this backward:
+// ((4 * Vcc) - Vref) * 32,768 = VccCode * 5 * Vref
+// (4 * Vcc) - Vref = (VccCode * 5 * Vref) / 32,768
+// 4 * Vcc = ((VccCode * 5 * Vref) / 32,768) + Vref
+// Vcc = (((VccCode * 5 * Vref) / 32,768) + Vref) / 4
+//
+double computeVcc(double Vref, double conversion)
+{
+    double intermediate1 = 5.0 * conversion * Vref;
+    double intermediate2 = intermediate1 / 32768.0;
+    double intermediate3 = intermediate2 + Vref;
+    double Vcc = intermediate3 / 4.0;
+
+    return Vcc;
+ }
+
+//
+// Compute the ALDO diagnostic channel in Volts, from the Vref (volts)
+// and the LDOCode value received by converting the ALDO diagnostic channel.
+//
+// From the data sheet:
+// LDOCode = ((10 * Valdo) - (7 * Vref)) * 32,768 / (10 * Vref)
+//
+// Working this backward:
+// ((10 * Valdo) - (7 * Vref)) * 32,768 = LDOCode * 10 * Vref
+// ((10 * Valdo) - (7 * Vref)) = LDOCode * 10 * Vref / 32,768
+// 10 * Valdo = (LDOCode * 10 * Vref / 32,768) + (7 * Vref)
+// Valdo = ((LDOCode * 10 * Vref / 32,768) + (7 * Vref) / 10
+//
+double computeALDO(double Vref, double conversion)
+{
+    double intermediate1 = 10.0 * conversion * Vref;
+    double intermediate2 = intermediate1 / 32768.0;
+    double intermediate3 = intermediate2 + (7.0 * Vref);
+    double ALDO = intermediate3 / 10.0;
+
+    return ALDO;
+}
+
 /*
 */
 int main(int argc, char *argv[])
@@ -346,7 +392,18 @@ int main(int argc, char *argv[])
     unsigned Bchannels[9] = {0, 1, 2, 3, 4, 5, 6, 7, 9};
     spi_definesequence(&self, 9, Achannels, Bchannels);
 
-    for (int _ = 0; _ < 50; _++)
+    outbuffer[0] = 0x20;
+    outbuffer[1] = 0x21;
+    outbuffer[2] = 0x22;
+    outbuffer[3] = 0x23;
+    outbuffer[4] = 0x24;
+    outbuffer[5] = 0x25;
+    outbuffer[6] = 0x26;
+    outbuffer[7] = 0x27;
+    outbuffer[8] = 0x28;
+    spi_readreg(&self, 9, outbuffer, inbuffer);
+
+    for (int _ = 0; _ < 5; _++)
     {
         spi_readconversion(&self, 9, inbuffer);
 
@@ -365,7 +422,7 @@ int main(int argc, char *argv[])
 
         unsigned aconv = (conversion >> 16) & 0x0000ffff;
         unsigned bconv = (conversion & 0x0000ffff);
-        printf("Channel %dA = %d (%04x),  %dB = %d (%04x)\n", 8, aconv, aconv, 8, bconv, bconv);
+        printf("Vcc %dA = %d (%2.2f V),  Vldo %dB = %d (%2.2f V)\n", 8, aconv, computeVcc(2.5, aconv), 8, bconv, computeALDO(2.5, bconv));
 
         usleep(100000);
     }
