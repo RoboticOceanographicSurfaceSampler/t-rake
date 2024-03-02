@@ -6,6 +6,97 @@ In addition, the system includes an optional thermistor carrier board designed t
 
 The thermistor carrier board can be disconnected from the A/D board, allowing a flexible design for future systems that may need high-resolution high-data-rate data acquisition.
 
+## AD7616 A/D chip Features
+
+The AD7616 A/D chip is controlled using six general-purpose registers plus a bank of 32 sequencer stack registers.  See the AD7616 data sheet for details, but the high point needed for programming covered here.
+
+The important things to know about the A/D chip are that it converts 16 channels of analog input using two 8-channel A/D converters in parallel.  These two A/D converters are called the 'A side' and the 'B side'.  The chip always converts a sample from each side at once, providing the results of both conversions in a single conversion.
+
+Some registers must be configured before using the A/D.  They are covered briefly here, again with more detail available in the data sheet.
+
+### Register 2 - Configuration Register
+
+The configuration register contains 8 bits, which are of interest only to the low-level transport layer.  No programming details are of interest to this document.
+
+### Register 3 - Channel Register
+
+The channel register is used only when single conversions are being performed.  In high-speed continuous mode, channel selection is performed using the sequencer stack registers.
+
+One A side channel and one B side channel are selected.  The two selected channels will be converted simultaneously during the next conversion, and and subsequent conversions until new channels a selected.
+
+```
+ 7  6  5  4  3  2  1  0
++-----------+----------+
+|  B  Side  |  A  Side |
++-----------+----------+
+```
+The four-bit nybbles work the same for A side and B side:  
+`0x00-07` - Select A side or B side channel 0-7 for the next conversion.  
+`0x08` - Select V<sub>cc</sub> for the next conversion.  
+`0x09` - Select V<sub>aldo</sub> for the next conversion.   
+`0x0a` - Not used, reserved.  
+`0x0b` - Self test.  For the A side, this returns 0xaaaa, and for the B side, it returns 0x5555.  
+`0x0c-0f` - These addresses are not used, reserved.  
+  
+
+### Register 4 - Input Range Register A1
+
+### Register 5 - Input Range Register A2
+
+### Register 6 - Input Range Register B1
+
+### Register 7 - Input Range Register B2
+
+These four registers work identically, selecting the input range for four channels each.
+
+For each 2-bit field -- four fields in each of the four registers -- the same pattern applies:
+`0b00` - +- 10V
+`0b01` - +- 2.5V
+`0b10` - +- 5V
+`0b11` - +- 10V
+
+For the T-rake thermistor application, the negative side of each channel is fixed at 2.5V, so the 0-5V swing provided by the thermistor conditioning board is interpreted as -2.5V - +2.5V, relative to the negative side.  Thus, for the T-rake, always configure all channels with the '01' pattern, indicating +- 2.5V.  The 8-bit pattern for all registers is thus 0b0101 0101 or 0x55.
+
+The fields are allocated to the four registers like this:
+```
+Register 4 - Range A1:
+  7  6  5  4  3  2  1  0
++-----------+-----------+
+|  3A |  2A |  1A |  0A |
++-----------+-----------+
+
+Register 5 - Range A2:
+  7  6  5  4  3  2  1  0
++-----------+-----------+
+|  7A |  6A |  5A |  4A |
++-----------+-----------+
+
+Register 6 - Range B1:
+  7  6  5  4  3  2  1  0
++-----------+-----------+
+|  3B |  2B |  1B |  0B |
++-----------+-----------+
+
+Register 7 - Range B2:
+  7  6  5  4  3  2  1  0
++-----------+-----------+
+|  7B |  6B |  5B |  4B |
++-----------+-----------+
+```
+
+### Registers 32-63 (0x20-0x3f) - Sequencer Stack Registers
+
+The sequencer stack is an array of 32 9-bit registers that can be configured with a sequence of channels to be converted.  When using the sequencer, a single conversion command allows the hardware to convert up to 32 A/B pairs of channel conversions.
+
+The format of the 32 sequencer stack registers is the same as the channel register, as described elsewhere.  The sole difference is that multiple channel selections are described, starting with register 32, and sequencing forward from there.  The last channel to be converted contains a 1 in bit 8 (the 0x100 bit).  So, the conversion will contain all registers described in register 32, 33, 34, ..., N, where register N has the 0x100 bit set.
+
+```
+  8   7  6  5  4  3  2  1  0
+----+-----------+----------+
+End |  B  Side  |  A  Side |
+----+-----------+----------+
+```
+
 ## Python Programming Interface
 
 ### `Initialize() : ADCHandle`
@@ -42,6 +133,8 @@ In order to clean up cleanly, and release all devices and memory that may be own
 `value`: The 9-bit value to be written to the addressed register.  
 <b>Returns:</b> ***None***
 
+Registers within the A/D chip may be written one at a time by specifying the address and value to write.  See the **AD7616 A/D chip Features** section above for details on what registers exist and what values they take.
+
 ### `ReadRegister(ADCHandle, address) : value`
 
 <b>Parameters:</b>  
@@ -49,12 +142,18 @@ In order to clean up cleanly, and release all devices and memory that may be own
 `address`:   
 <b>Returns:</b> `value`
 
+Registers within the A/D chip may be read one at a time by specifying the address.  See the **AD7616 A/D chip Features** section above for details on what registers exist and what values they may return.
+
 ### `ReadRegisters(ADCHandle, addresses[]) : values[]`
 
 <b>Parameters:</b>  
 `ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
 `addresses[]`:   
 <b>Returns:</b> `values[]`
+
+Registers within the A/D chip may be read as a group by specifying an array with a list of addresses.  See the **AD7616 A/D chip Features** section above for details on what registers exist and what values they may return.
+
+The values of the addressed registers are read and returned in an array of the same length.
 
 ### `DefineSequence(ADCHandle, AChannels[], BChannels[]) : None`
 
@@ -64,13 +163,15 @@ In order to clean up cleanly, and release all devices and memory that may be own
 `BChannels[]`:   
 <b>Returns:</b> ***None***
 
-Write to the sequence stack registers in the A/D chip.  These 32 8-bit registers contain two 4-bit fields each:  
+Write to the sequence stack registers in the A/D chip.  These 32 9-bit registers contain two 4-bit fields each, plus a high bit indicating the end of the sequence:  
 ```
- 7  6  5  4  3  2  1  0
-+-----------+----------+
-|  B  Side  |  A  Side |
-+-----------+----------+
+  8   7  6  5  4  3  2  1  0
+----+-----------+----------+
+End |  B  Side  |  A  Side |
+----+-----------+----------+
 ```
+
+See the sections on **Register 3 - Channel Register** and **Registers 32-63 (0x20-0x3f) - Sequencer Stack Registers** above for details.
 
 ### `ReadConversions(ADCHandle) : values[]`
 
@@ -78,7 +179,9 @@ Write to the sequence stack registers in the A/D chip.  These 32 8-bit registers
 `ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
 <b>Returns:</b> `values[]`
 
-Before calling ReadConversions(), a channel sequence must be established using DefineSequence().
+Before calling ReadConversions(), a channel sequence must be established using DefineSequence().  This function will then perform a single conversion command to the A/D chip, which will convert all channels in the sequence, and return them.
+
+The returned converted samples are returned in an array with all A side samples returned first, followed by all B side samples.
 
 ### `Start(ADCHandle, period) : None`
 
@@ -99,6 +202,8 @@ Calling Start() allows:
 <b>Parameters:</b>  
 `ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
 <b>Returns:</b> ***None***
+
+This function will stop the background data acquisition and writing of the file.
 
 ### Examples
 
