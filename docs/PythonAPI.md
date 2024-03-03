@@ -2,7 +2,7 @@
 
 The t-rake temperature data acquisition system is a 16-channel Analog-to-Digital converter (A/D) with 16-bit resolution per channel and a high-throughput capability, allowing for high-speed high-resolution data capture.
 
-In addition, the system includes an optional thermistor carrier board designed to carry four quad-channel thermistor conditioning boards.  When used in conjunction, these two boards provide 16-bit resolution of up to 16 thermistor boards at millisecond time scales.
+In addition, the system includes an optional thermistor carrier board designed to carry four quad-channel thermistor conditioning boards.  When used in conjunction, these two boards provide 16-bit resolution of up to 16 thermistors at millisecond time scales.
 
 The thermistor carrier board can be disconnected from the A/D board, allowing a flexible design for future systems that may need high-resolution high-data-rate data acquisition.
 
