@@ -91,10 +91,10 @@ The sequencer stack is an array of 32 9-bit registers that can be configured wit
 The format of the 32 sequencer stack registers is the same as the channel register, as described elsewhere.  The sole difference is that multiple channel selections are described, starting with register 32, and sequencing forward from there.  The last channel to be converted contains a 1 in bit 8 (the 0x100 bit).  So, the conversion will contain all registers described in register 32, 33, 34, ..., N, where register N has the 0x100 bit set.
 
 ```
-  8   7  6  5  4  3  2  1  0
-----+-----------+----------+
-End |  B  Side  |  A  Side |
-----+-----------+----------+
+   8   7  6  5  4  3  2  1  0
++-----+-----------+----------+
+| End |  B  Side  |  A  Side |
++-----+-----------+----------+
 ```
 
 ## Python Programming Interface
@@ -165,10 +165,10 @@ The values of the addressed registers are read and returned in an array of the s
 
 Write to the sequence stack registers in the A/D chip.  These 32 9-bit registers contain two 4-bit fields each, plus a high bit indicating the end of the sequence:  
 ```
-  8   7  6  5  4  3  2  1  0
-----+-----------+----------+
-End |  B  Side  |  A  Side |
-----+-----------+----------+
+   8   7  6  5  4  3  2  1  0
++-----+-----------+----------+
+| End |  B  Side  |  A  Side |
++-----+-----------+----------+
 ```
 
 See the sections on **Register 3 - Channel Register** and **Registers 32-63 (0x20-0x3f) - Sequencer Stack Registers** above for details.
