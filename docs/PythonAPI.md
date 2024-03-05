@@ -139,8 +139,8 @@ Registers within the A/D chip may be written one at a time by specifying the add
 
 <b>Parameters:</b>  
 `ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
-`address`:   
-<b>Returns:</b> `value`
+`address`: The address of an internal register on the AD7616 A/D chip, within the range 0x02 - 0x3f (2 - 63) inclusive.  Addresses 0, 1, and 8-31 are not valid, and will cause undefined behavior.  
+<b>Returns:</b> `value`: The 9-bit value read from the addressed register.  
 
 Registers within the A/D chip may be read one at a time by specifying the address.  See the **AD7616 A/D chip Features** section above for details on what registers exist and what values they may return.
 
@@ -148,8 +148,8 @@ Registers within the A/D chip may be read one at a time by specifying the addres
 
 <b>Parameters:</b>  
 `ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
-`addresses[]`:   
-<b>Returns:</b> `values[]`
+`addresses[]`: An array of address of internal registers on the AD7616 A/D chip, within the range 0x02 - 0x3f (2 - 63) inclusive.  Addresses 0, 1, and 8-31 are not valid, and will cause undefined behavior.  
+<b>Returns:</b> `values[]`: An array of 9-bit values read from the addressed registers.  
 
 Registers within the A/D chip may be read as a group by specifying an array with a list of addresses.  See the **AD7616 A/D chip Features** section above for details on what registers exist and what values they may return.
 
@@ -159,8 +159,8 @@ The values of the addressed registers are read and returned in an array of the s
 
 <b>Parameters:</b>  
 `ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
-`AChannels[]`:   
-`BChannels[]`:   
+`AChannels[]`: An array of A side channels to be converted in a single hardware conversion operation.  
+`BChannels[]`: An array of B side channels to be converted in a single hardware convresion operation.  
 <b>Returns:</b> ***None***
 
 Write to the sequence stack registers in the A/D chip.  These 32 9-bit registers contain two 4-bit fields each, plus a high bit indicating the end of the sequence:  
@@ -177,11 +177,15 @@ See the sections on **Register 3 - Channel Register** and **Registers 32-63 (0x2
 
 <b>Parameters:</b>  
 `ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
-<b>Returns:</b> `values[]`
+<b>Returns:</b> `values[]`: The array of converted values [AChannels[0], AChannels[1], ..., AChannels[N], BChannels[0], BChannels[1], ..., BChannels[N]]
 
 Before calling ReadConversions(), a channel sequence must be established using DefineSequence().  This function will then perform a single conversion command to the A/D chip, which will convert all channels in the sequence, and return them.
 
-The returned converted samples are returned in an array with all A side samples returned first, followed by all B side samples.
+The A/D chip hardware will select the first pair of registers [AChannels[0], BChannels[0]] provided by DefineSequence() and convert them in a single operation, then sequence to the second pair of registers [AChannels[1], BChannels[1]] and so on through [AChannels[N], BChannels[N]].  The sequence is performed in hardware at high speed, so all pairs in the sequence stack are converted as nearly as possible (within 10s of microseconds of each other) at the same time.
+
+Only after the hardware conversion sequence is complete, the low-level code will read back the results and make them available in the values[] array.
+
+The converted samples are returned in the values[] array with all A side samples returned first, followed by all B side samples.
 
 ### `Start(ADCHandle, period) : None`
 
