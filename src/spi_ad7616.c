@@ -72,7 +72,7 @@ int spi_initialize(self_t* self)
     return 0;
 }
 
-void spi_idle(self_t* self)
+static void spi_idle(self_t* self)
 {
     // Set defaults for output pins
     gpioWrite(ADC_CONVST_Pin, 0);
