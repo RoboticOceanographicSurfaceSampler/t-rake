@@ -391,7 +391,7 @@ void spi_readconversion(self_t self, unsigned count, unsigned* conversions)
     double elapsed = (double)(end - start);
 	long tpElapsed = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
 
-    printf("%d conversions used %lf ms CPU, done in %lu us\n\n", count, elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
+    // printf("%d conversions used %lf ms CPU, done in %lu us\n\n", count, elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
 }
 
 //
@@ -498,15 +498,37 @@ unsigned spi_convertpair(self_t self, unsigned channelA, unsigned channelB)
     return conversion;
 }
 
-static int AcquisitionPeriod = 10;
-static int quit = 0;
+//
+// The worker thread that does the background data acquisition and file capture.
+//
+// In this version, both function are performed in one thread.  The file capture
+// adds to the overall time spent in this thread, impacting the fastest data capture rate.
+// If we need a faster data capture rate, we should consider splitting the data
+// capture into its own thread.
+//
+// To get info on how long the conversion is taking, uncommnet the line below following DIAGNOSTIC.
+//
+// Parameters:
+// vargp: Per POSIX, an opaque pointer to the arguments for the thread.
+//
+// Returns: An opaque pointer to the returned value.  Currently NULL.
+//
+static int AcquisitionPeriod_ms = 10;       // Set by Start().
+static int quit = 0;                        // Cleared by Start(), set by Stop().  The thread stops when set.
 
 void* DoDataAcquisition(void* vargp)
 {
     FILE* acquisitionFile = NULL;
+    unsigned long AcquisitiontPeriod_ns = AcquisitionPeriod_ms * 1000*1000;
+
+    // Checkpoint the start time in nanoseconds.
+    struct timespec tpStart;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tpStart);
+    unsigned long starttime_ns = tpStart.tv_sec * 1000*1000*1000 + tpStart.tv_nsec;
 
     if (SequenceSize > 0)
     {
+        // Create a new file and write the CSV header.  Always close the file to flush to disk.
         acquisitionFile = fopen("data/data.csv", "w");
         fprintf(acquisitionFile, "Tick");
         for (unsigned i = 0; i < SequenceSize; i++)
@@ -518,18 +540,19 @@ void* DoDataAcquisition(void* vargp)
     }
     acquisitionFile = NULL;
 
-    int tickCount = 1000;
+    unsigned long nextticktime_ns = starttime_ns;
     do
     {
-        usleep(1000000);
-        printf("Printing from DoDataAcquisition\n");
+        // printf("Printing from DoDataAcquisition\n");
 
-
+        // SequenceSize is filled out by spi_definesequence(), and is the full size, including all A and B channels.
         if (SequenceSize > 0)
         {
+            // We convert SequenceSize/2 samples, since A and B channels are packed into a single 32-bit value.
             unsigned conversions[64];
             spi_readconversion(spidef, SequenceSize/2, conversions);
 
+            // Break out A and B channels into individual 16-bit samples, with all A channels first.
             unsigned separatedConversion[64];
             for (unsigned i = 0; i < SequenceSize / 2; i++)
             {
@@ -539,8 +562,9 @@ void* DoDataAcquisition(void* vargp)
                 separatedConversion[i + (SequenceSize / 2)] = BConv;
             }
 
+            // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
             acquisitionFile = fopen("data/data.csv", "a");
-            fprintf(acquisitionFile, "%d", tickCount);
+            fprintf(acquisitionFile, "%lu", ((nextticktime_ns-starttime_ns) / (1000*1000)));
             for (unsigned i = 0; i < SequenceSize; i++)
             {
                 fprintf(acquisitionFile, ",%d", separatedConversion[i]);
@@ -548,22 +572,68 @@ void* DoDataAcquisition(void* vargp)
             fprintf(acquisitionFile, "\n");
             fclose(acquisitionFile);
             acquisitionFile = NULL;
-
-            tickCount += AcquisitionPeriod;
         }
+
+        struct timespec tpNow;
+        clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
+        unsigned long now_ns = tpNow.tv_sec * 1000*1000*1000 + tpNow.tv_nsec;
+        nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
+        while (nextticktime_ns < now_ns) {
+            nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
+        }
+
+        unsigned long timeleftinperiod_ns = nextticktime_ns - now_ns;
+        // DIAGNOSTIC - Uncomment this line to get info on how much time is spent converting.
+        // printf("Conversion time was %lu ns, sleeping %lu ns\n", (AcquisitiontPeriod_ns - timeleftinperiod_ns), timeleftinperiod_ns);
+        usleep(timeleftinperiod_ns / 1000);
     } while (!quit);
 
     return NULL;    
 }
 
+//
+// Start the background data acquisition thread performing conversions as specified 
+// in spi_definesequence(), and capturing all converted results to a CSV file.
+//
+// Warning: This method can only be used after calling spi_definesequence().
+//          After calling spi_definesequence() at least once, the AD7616 chip will
+//          be configured to take its channel from the sequencer stack registers.
+//
+// Parameters:
+// self: A copy of the opaque handle that was provided by spi_initialize().
+// period: The sample period in milliseconds.
+//
+// NOTE: Is is allowed to call this method repeatedly, as only the first call
+//       will have any effect.
+//
+// Returns: Nothing.
+//
 static pthread_t thread_id;
 void spi_start(self_t self, unsigned period)
 {
+    if (thread_id != 0)
+    {
+        printf("Thread already running, not starting\n");
+        return;
+    }
+
     printf("Starting thread with period %d\n", period);
-    AcquisitionPeriod = period;
+    AcquisitionPeriod_ms = period;
+    quit = 0;
     pthread_create(&thread_id, NULL, DoDataAcquisition, NULL);
 }
 
+//
+// If the background data acquisition thread is running, stop it after the current conversion.
+//
+// Parameters:
+// self: A copy of the opaque handle that was provided by spi_initialize().
+//
+// NOTE: Is is allowed to call this method repeatedly, as only the first call
+//       will have any effect.
+//
+// Returns: Nothing.
+//
 void spi_stop(self_t self)
 {
     if (thread_id == 0)
