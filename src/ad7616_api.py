@@ -82,15 +82,21 @@ class AD7616:
         conversions_array = c_uint32 * self.sequenceLength
         conversionvalues = conversions_array()
         self.driver.spi_readconversion(self.handle, self.sequenceLength, conversionvalues)
+        for conversionvalue in conversionvalues: print(f"{conversionvalue} ", end=" ")
+        print()
 
         conversions = []
+        # First, append all the A side conversions.
         for conversion in conversionvalues:
-            conversions.append(conversion)
+            conversions.append(((conversion >> 16) & 0xffff))
+        # Second, append all the B side conversions.
+        for conversion in conversionvalues:
+            conversions.append(conversion & 0xffff)
 
         return conversions
 
     def Start(self, period):
-        pass
+        self.driver.spi_start(self.handle, period)
 
     def Stop(self):
-        pass
+        self.driver.spi_stop(self.handle)

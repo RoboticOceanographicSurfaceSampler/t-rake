@@ -36,6 +36,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <time.h>
+#include <pthread.h>
 
 #include <pigpio.h>
 
@@ -422,6 +423,8 @@ void spi_readconversion(self_t self, unsigned count, unsigned* conversions)
 //
 // Returns: Nothing.
 //
+static unsigned SequenceSize = 0;
+static unsigned LastDefinedSequence[128];
 void spi_definesequence(self_t self, unsigned count, unsigned* Achannels, unsigned* Bchannels)
 {
     if (count > 32)
@@ -430,6 +433,8 @@ void spi_definesequence(self_t self, unsigned count, unsigned* Achannels, unsign
         return;
     }
 
+    unsigned AChannels[32];
+    unsigned BChannels[32];
     unsigned sequencer = 0x20;
 
     for (unsigned i = 0; i < count; i++, sequencer++, Achannels++, Bchannels++)
@@ -438,13 +443,26 @@ void spi_definesequence(self_t self, unsigned count, unsigned* Achannels, unsign
         if (i + 1 == count)
             ssren = 0x100;
 
-        unsigned channeldata = (*Bchannels & 0xf) << 4 | (*Achannels & 0xf) | ssren;
+        unsigned AChannel = (*Achannels & 0xf);
+        unsigned BChannel = (*Bchannels & 0xf);
+        unsigned channeldata = BChannel << 4 | AChannel | ssren;
         spi_writeregister(self, sequencer, channeldata);
+
+        AChannels[i] = AChannel;
+        BChannels[i] = BChannel;
     }
+
+    // Capture the last sequence.
+    for (unsigned i = 0; i < count; i++)
+    {
+        LastDefinedSequence[i] = AChannels[i];
+        LastDefinedSequence[i + count] = BChannels[i] + count;
+    }
+    SequenceSize = count * 2;
 
     // Read the configuration register, set BURSTEN and SEQEN, write it back.
     unsigned configuration = spi_readregister(self, 2);
-    configuration |= (0x40 | 0x20);     // BURSTEN with SEQEN.
+    configuration |= (0x40 | 0x20 | 0x1);     // BURSTEN with SEQEN.
     spi_writeregister(self, 2, configuration);
 }
 
@@ -480,4 +498,84 @@ unsigned spi_convertpair(self_t self, unsigned channelA, unsigned channelB)
     return conversion;
 }
 
+static int AcquisitionPeriod = 10;
+static int quit = 0;
 
+void* DoDataAcquisition(void* vargp)
+{
+    FILE* acquisitionFile = NULL;
+
+    if (SequenceSize > 0)
+    {
+        acquisitionFile = fopen("data/data.csv", "w");
+        fprintf(acquisitionFile, "Tick");
+        for (unsigned i = 0; i < SequenceSize; i++)
+        {
+            fprintf(acquisitionFile, ",Channel%d", LastDefinedSequence[i]);
+        }
+        fprintf(acquisitionFile, "\n");
+        fclose(acquisitionFile);
+    }
+    acquisitionFile = NULL;
+
+    int tickCount = 1000;
+    do
+    {
+        usleep(1000000);
+        printf("Printing from DoDataAcquisition\n");
+
+
+        if (SequenceSize > 0)
+        {
+            unsigned conversions[64];
+            spi_readconversion(spidef, SequenceSize/2, conversions);
+
+            unsigned separatedConversion[64];
+            for (unsigned i = 0; i < SequenceSize / 2; i++)
+            {
+                unsigned BConv = (conversions[i] >> 16) & 0xffff;
+                unsigned AConv = conversions[i] & 0xffff;
+                separatedConversion[i] = AConv;
+                separatedConversion[i + (SequenceSize / 2)] = BConv;
+            }
+
+            acquisitionFile = fopen("data/data.csv", "a");
+            fprintf(acquisitionFile, "%d", tickCount);
+            for (unsigned i = 0; i < SequenceSize; i++)
+            {
+                fprintf(acquisitionFile, ",%d", separatedConversion[i]);
+            }
+            fprintf(acquisitionFile, "\n");
+            fclose(acquisitionFile);
+            acquisitionFile = NULL;
+
+            tickCount += AcquisitionPeriod;
+        }
+    } while (!quit);
+
+    return NULL;    
+}
+
+static pthread_t thread_id;
+void spi_start(self_t self, unsigned period)
+{
+    printf("Starting thread with period %d\n", period);
+    AcquisitionPeriod = period;
+    pthread_create(&thread_id, NULL, DoDataAcquisition, NULL);
+}
+
+void spi_stop(self_t self)
+{
+    if (thread_id == 0)
+    {
+        printf("No thread running, not stopping\n");
+        return;
+    }
+
+    printf("Signaling thread to stop and waiting...");
+    quit = 1;
+    pthread_join(thread_id, NULL);
+    printf("stopped\n");
+
+    thread_id = 0;
+}

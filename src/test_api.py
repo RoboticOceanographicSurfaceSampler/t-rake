@@ -44,14 +44,15 @@ def DefineConversionSequence(chip):
 def ConvertSequence(chip):
     conversionvalues = chip.ReadConversions()
 
-    for i in range(8):
-        conversion = conversionvalues[i]
-
-        aconv = (conversion >> 16) & 0x0000ffff
-        aconv = (aconv + 0x8000) & 0x0000ffff
-        bconv = (conversion & 0x0000ffff)
-        bconv = (bconv + 0x8000) & 0x0000ffff
-        print(f"Channel {i}A = {aconv} ({hex(aconv)}),  {i}B = {bconv} ({hex(bconv)})")
+    linecounter = 4
+    for i, conversion in enumerate(conversionvalues):
+        conversion_differential = (conversion - 65536) if (conversion & 0x8000) != 0 else conversion
+        conversion_single_ended = (conversion + 0x8000) & 0x0000ffff
+        print(f"Channel {i:2}: {conversion:4x} = {conversion_differential:5} -> {conversion_single_ended:5}", end=" ")
+        linecounter = linecounter - 1
+        if linecounter <= 0:
+            print()
+            linecounter = 4
 
     conversion = conversionvalues[8]
 
@@ -74,4 +75,6 @@ with AD7616() as chip:
 
         time.sleep(.100000)
 
-
+    chip.Start(10)
+    time.sleep(10)
+    chip.Stop()
