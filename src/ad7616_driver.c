@@ -23,7 +23,7 @@
 // was 25-50 times too slow for the requirements.  Thus, the bit-bang
 // layer is implemented in the C file.
 //
-// The strategy is to build this C file as a loadeable library, ad7616_driver.so,
+// The strategy is to build this C file as a loadable library, ad7616_driver.so,
 // which can easily be called from either C, C++, or Python programs.
 //
 // To build on a Raspberry Pi, use this command in a terminal prompt after changing

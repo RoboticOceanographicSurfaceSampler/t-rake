@@ -2,7 +2,7 @@
 
 The Temperature Rake acquisition board acquires high-resolution high-speed measurements from an instrument that houses up to 16 termistors.  The acquisition board features:
 - An Analog Devices AD7616 A/D converter that converts 16 channels of analog input with 16-bit resolution at up to megahertz rates.
-- A Raspberry Pi computer to control the A/D converter chip and capture acquired data in a file.
+- A Raspberry Pi computer to control the A/D converter chip and captures acquired data in a file.
 - Mounting points for up to four precision thermistor signal conditioning boards, which provide 0-5V signals for up to four thermistors each.
 - Optionally, the acquisition board can be manufactured by shearing the A/D converter section from the thermistor input section, allowing the A/D converter to be used for other data acquisition purposes.
 
@@ -26,7 +26,7 @@ By placing the A/D channels in a +/- 2.5V range, this signal is appropriate to g
 Of course, the 16-bit value converted by the A/D chip is a signed range of -32768 - 32767, so a little arithmetic must be applied to add 32768 to it, resulting in an unsigned range of 0 - 65535.
 
 ## Low Level C driver
-The AD7616 A/D converter chip provides several channels of data acquisition, including a parallel mode and a Serial Peripheral Interface (SPI) mode.  The SPI mode was chosen to minimize the number of connections needed.
+The AD7616 A/D converter chip provides several modes of communication, including a parallel mode and a Serial Peripheral Interface (SPI) mode.  The SPI mode was chosen to minimize the number of connections needed.
 
 The SPI serial mode allows two pathways, both of which present problems with the Raspberry Pi hardware.  
 1. 2-wire SPI.  The AD7616 A/D chip is really two A/D converters operating in parallel.  The fastest way to get the conversion values out of the chip using SPI is to signal it to send the A side conversions over one MISO pin, and the B side conversions over a second MISO pin.  This ability to use two MISO pins, both clocked by the same SCLK, is not standard SPI, but can be  eumulated with a bit-banged approach.  
@@ -34,7 +34,7 @@ The SPI serial mode allows two pathways, both of which present problems with the
 
 After best attempts to get either of the above modes to work with SPI hardware, it was determined that the best approach is to bit-bang four Raspberry Pi GPIO pins in software.  This was attempted in Python, but was 25-50 times too slow for the requirements.  Thus, the bit-bang layer is implemented in the C file.
 
-The strategy is to build this C file as a loadeable library, ad7616_driver.so, which can easily be called from either C, C++, or Python programs.
+The strategy is to build this C file as a loadable library, ad7616_driver.so, which can easily be called from either C, C++, or Python programs.
 
 The C library also provides a multi-threaded data acquistion mode where it continuously starts conversions on a precise clock tick, acquires those conversion results, and captures them into a data file.
 
