@@ -54,3 +54,5 @@ src/spi_7616
 src/fc
 src/spi
 src/tr
+src/data/data.csv
+src/__pycache__/*

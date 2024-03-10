@@ -75,6 +75,6 @@ with AD7616() as chip:
 
         time.sleep(.100000)
 
-    chip.Start(10)
+    chip.Start(10, "./", "trake.csv")
     time.sleep(10)
     chip.Stop()

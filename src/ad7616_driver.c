@@ -36,6 +36,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <time.h>
+#include <string.h>
 #include <pthread.h>
 
 #include <pigpio.h>
@@ -513,6 +514,8 @@ unsigned spi_convertpair(self_t self, unsigned channelA, unsigned channelB)
 //
 // Returns: An opaque pointer to the returned value.  Currently NULL.
 //
+#define FilePathLength 1000
+static char AcquisitionFilePath[FilePathLength];      // Full path to filename.
 static int AcquisitionPeriod_ms = 10;       // Set by Start().
 static int quit = 0;                        // Cleared by Start(), set by Stop().  The thread stops when set.
 
@@ -529,7 +532,7 @@ void* DoDataAcquisition(void* vargp)
     if (SequenceSize > 0)
     {
         // Create a new file and write the CSV header.  Always close the file to flush to disk.
-        acquisitionFile = fopen("data/data.csv", "w");
+        acquisitionFile = fopen(AcquisitionFilePath, "w");
         fprintf(acquisitionFile, "Tick");
         for (unsigned i = 0; i < SequenceSize; i++)
         {
@@ -563,7 +566,7 @@ void* DoDataAcquisition(void* vargp)
             }
 
             // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
-            acquisitionFile = fopen("data/data.csv", "a");
+            acquisitionFile = fopen(AcquisitionFilePath, "a");
             fprintf(acquisitionFile, "%lu", ((nextticktime_ns-starttime_ns) / (1000*1000)));
             for (unsigned i = 0; i < SequenceSize; i++)
             {
@@ -609,7 +612,7 @@ void* DoDataAcquisition(void* vargp)
 // Returns: Nothing.
 //
 static pthread_t thread_id;
-void spi_start(self_t self, unsigned period)
+void spi_start(self_t self, unsigned period, char* path, char* filename)
 {
     if (thread_id != 0)
     {
@@ -617,7 +620,26 @@ void spi_start(self_t self, unsigned period)
         return;
     }
 
-    printf("Starting thread with period %d\n", period);
+    printf("Starting thread using path '%s' and filename '%s'\n", path, filename);
+    int error = 1;
+    strncpy(AcquisitionFilePath, path, FilePathLength);
+    int remaining = FilePathLength - strlen(AcquisitionFilePath) - 1;
+    if (remaining > 0)
+    {
+        strncat(AcquisitionFilePath, "/", 2);
+        remaining -= 1;
+        if (remaining > strlen(filename))
+        {
+            strncat(AcquisitionFilePath, filename, strlen(filename));
+            error = 0;
+        }
+    }
+    if (error)
+    {
+        strncpy(AcquisitionFilePath, "./trake.csv", FilePathLength);
+    }
+    printf("Starting thread with period %d, saving data to %s\n", period, AcquisitionFilePath);
+
     AcquisitionPeriod_ms = period;
     quit = 0;
     pthread_create(&thread_id, NULL, DoDataAcquisition, NULL);

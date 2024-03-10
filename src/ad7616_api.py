@@ -95,8 +95,9 @@ class AD7616:
 
         return conversions
 
-    def Start(self, period):
-        self.driver.spi_start(self.handle, period)
+    def Start(self, period, path, filename):
+        self.driver.spi_start.argtypes = [SPIDEF, c_uint32, c_char_p, c_char_p]
+        self.driver.spi_start(self.handle, period, c_char_p(bytes(path, "ASCII")), c_char_p(bytes(filename, "ASCII")))
 
     def Stop(self):
         self.driver.spi_stop(self.handle)
