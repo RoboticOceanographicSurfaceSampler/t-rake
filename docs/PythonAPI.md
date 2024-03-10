@@ -99,55 +99,48 @@ The format of the 32 sequencer stack registers is the same as the channel regist
 
 ## Python Programming Interface
 
-### `Initialize() : ADCHandle`
+The Python API is implemented as methods on a class.  The following sections will detail these instance methods.
 
-<b>Paramters:</b> ***None***  
-<b>Returns:</b> An opaque object that acts as a handle to the ADC instance.  This handle must be passed in to all subsequent calls.
+*NOTE:* Since these are all instance methods in Python, the first `self` parameter is shown in the signatures below, but is not normally explicitly supplied by a caller.
 
-A call to Initialize() is required before any other call.
+*IMPORTANT NOTE* This code makes use of a C program that directly controls the GPIO pins, and requires admin privileges.  Always run programs making use of this code with `sudo`.
+
+### `The AD7616 Class`
+To use the API, you will need to create an instance of the AD7616 class.  This class is developed with `__enter__` and `__exit__` methods to make it appropriate to use the `with` Python syntax.
+
+Best practice:
+```py
+with AD7616() as chip:
+  chip.method1()
+  chip.method2()
+
+# After falling off the end of the indented code, the AD7616 object will be destroyed, and the 'chip' variable will no longer be available.
+```
 
 
-### `Open(ADCHandle, bus, device) : None`
-
-<b>Parameters:</b>  
-`ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
-`bus`: The bus to open on, either 0 or 1.  Currently, only bus 1 is supported.  
-`device`: Bus 0 supports two devices, 0 and 1.  Bus 1 supports 3 devices, 0, 1, and 2.  Currently, only bus 1 device 0 is supported.  
-<b>Returns:</b> ***None***
-
-Before the ADC may be used, it must be opened.
-
-### `Terminate(ADCHandle) : None`
-
-<b>Parameters:</b>  
-`ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
-<b>Returns:</b> ***None***
-
-In order to clean up cleanly, and release all devices and memory that may be owned, the final call to `Terminate()` must be made.  After this call, the ADC is no useable.
-
-### `WriteRegister(ADCHandle, address, value) : None`
+### `WriteRegister(self, address, value) : None`
 
 <b>Parameters:</b>  
-`ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
+`self`: The instance of the AD7616 class object.  Typically supplied by the compiler, not the caller.  
 `address`: The address of an internal register on the AD7616 A/D chip, within the range 0x02 - 0x3f (2 - 63) inclusive.  Addresses 0, 1, and 8-31 are not valid, and will cause undefined behavior.  
 `value`: The 9-bit value to be written to the addressed register.  
 <b>Returns:</b> ***None***
 
 Registers within the A/D chip may be written one at a time by specifying the address and value to write.  See the **AD7616 A/D chip Features** section above for details on what registers exist and what values they take.
 
-### `ReadRegister(ADCHandle, address) : value`
+### `ReadRegister(self, address) : value`
 
 <b>Parameters:</b>  
-`ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
+`self`: The instance of the AD7616 class object.  Typically supplied by the compiler, not the caller.  
 `address`: The address of an internal register on the AD7616 A/D chip, within the range 0x02 - 0x3f (2 - 63) inclusive.  Addresses 0, 1, and 8-31 are not valid, and will cause undefined behavior.  
 <b>Returns:</b> `value`: The 9-bit value read from the addressed register.  
 
 Registers within the A/D chip may be read one at a time by specifying the address.  See the **AD7616 A/D chip Features** section above for details on what registers exist and what values they may return.
 
-### `ReadRegisters(ADCHandle, addresses[]) : values[]`
+### `ReadRegisters(self, addresses[]) : values[]`
 
 <b>Parameters:</b>  
-`ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
+`self`: The instance of the AD7616 class object.  Typically supplied by the compiler, not the caller.  
 `addresses[]`: An array of address of internal registers on the AD7616 A/D chip, within the range 0x02 - 0x3f (2 - 63) inclusive.  Addresses 0, 1, and 8-31 are not valid, and will cause undefined behavior.  
 <b>Returns:</b> `values[]`: An array of 9-bit values read from the addressed registers.  
 
@@ -155,10 +148,20 @@ Registers within the A/D chip may be read as a group by specifying an array with
 
 The values of the addressed registers are read and returned in an array of the same length.
 
-### `DefineSequence(ADCHandle, AChannels[], BChannels[]) : None`
+### `ConvertPair(self, AChannel, BChannel) : (AValue, BValue)`
 
 <b>Parameters:</b>  
-`ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
+`self`: The instance of the AD7616 class object.  Typically supplied by the compiler, not the caller.  
+`AChannel`: The channel number for the A side to convert.  
+`BChannel`: The channel number for the B side to convert.  
+<b>Returns:</b> A tuple containing the 16-bit raw conversion of the A side followed by the B side.  
+
+See the **Register 3 - Channel Register** section above for details on channel selection codes.
+
+### `DefineSequence(self, AChannels[], BChannels[]) : None`
+
+<b>Parameters:</b>  
+`self`: The instance of the AD7616 class object.  Typically supplied by the compiler, not the caller.  
 `AChannels[]`: An array of A side channels to be converted in a single hardware conversion operation.  
 `BChannels[]`: An array of B side channels to be converted in a single hardware convresion operation.  
 <b>Returns:</b> ***None***
@@ -173,10 +176,10 @@ Write to the sequence stack registers in the A/D chip.  These 32 9-bit registers
 
 See the sections on **Register 3 - Channel Register** and **Registers 32-63 (0x20-0x3f) - Sequencer Stack Registers** above for details.
 
-### `ReadConversions(ADCHandle) : values[]`
+### `ReadConversions(self) : values[]`
 
 <b>Parameters:</b>  
-`ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
+`self`: The instance of the AD7616 class object.  Typically supplied by the compiler, not the caller.  
 <b>Returns:</b> `values[]`: The array of converted values [AChannels[0], AChannels[1], ..., AChannels[N], BChannels[0], BChannels[1], ..., BChannels[N]]
 
 Before calling ReadConversions(), a channel sequence must be established using DefineSequence().  This function will then perform a single conversion command to the A/D chip, which will convert all channels in the sequence, and return them.
@@ -187,79 +190,157 @@ Only after the hardware conversion sequence is complete, the low-level code will
 
 The converted samples are returned in the values[] array with all A side samples returned first, followed by all B side samples.
 
-### `Start(ADCHandle, period) : None`
+### `Start(self, period, path, filename) : None`
 
 <b>Parameters:</b>  
-`ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
-`period`: The time in milliseconds between ADC conversion cycles  
+`self`: The instance of the AD7616 class object.  Typically supplied by the compiler, not the caller.  
+`period`: The time in milliseconds between ADC conversion cycles.  
+`path`: A string containing the full path to the folder where data acquisition files will be stored.  
+`filename`: A string containing the file name (including extension) of the data acquisition file.  
 <b>Returns:</b> ***None***
 
-Before calling Start(), a channel sequence must be established using DefineSequence().
+*NOTE:* Before calling Start(), a channel sequence must be established using DefineSequence().
+
+*NOTE:* The path described in the `path` parameter must exist before calling `Start()`.
+
+Typically, the caller will determine a path, and use the same path for all calls to Start().
+
+The string passed in the `filename` parameter will be used to create the data acquisition file.  It will also appear inside the file for reference by later data analysis.  The file name should be unique within `path`.  It is expected that the file name will be based on a time stamp in some way.
 
 Calling Start() allows:
-- A file is created on a configured path, and opened for writing.  The file name is based on the time it is created.
+- A file is created on a specified path, and opened for writing.  
 - Periodic conversion starts in the background, and continues until Stop() is called.  The conversions produce the same values returned by ReadConversions().
 - A new record is written to the file for each conversion, including an indication of the time the conversion was made.
 
-### `Stop(ADCHandle) : None`
+*Note:* It is acceptable to call `Start()` more than once with no `Stop()`.  Only the first call will have any effect.
+
+### `Stop(self) : None`
 
 <b>Parameters:</b>  
-`ADCHandle`: The opaque ADC handle returned from a call to Initialize().  This identifies the ADC instance.  
+`self`: The instance of the AD7616 class object.  Typically supplied by the compiler, not the caller.  
 <b>Returns:</b> ***None***
 
 This function will stop the background data acquisition and writing of the file.
 
-### Examples
+*Note:* It is acceptable to call `Stop()` more than once with no `Start()`.  Only the first call will have any effect.
+
+### Example
+The following is a test program the exercises all the functionality of the AD7616 API.  It is intended to provide a starting point for future applications.
 
 ```py
-import adc
+import time
+from ad7616_api import AD7616
 
-adcHandle = adc.Initialize()
-adc.open(adcHandle, 1, 0)
+def SetConversionScaleForAllChannels(chip):
+  # Write an input range of +-2.5V to all channels.
+  chip.WriteRegister(4, 0x55)   # Input range for A-side channels 0-3.
+  chip.WriteRegister(5, 0x55)   # Input range for A-side channels 4-7.
+  chip.WriteRegister(6, 0x55)   # Input range for B-side channels 0-3.
+  chip.WriteRegister(7, 0x55)   # Input range for B-side channels 4-7.
 
-# Write an input range of +-2.5V to all channels.
-adc.WriteRegister(adcHandle, 4, 0x55)   # Input range for A-side channels 0-3.
-adc.WriteRegister(adcHandle, 5, 0x55)   # Input range for A-side channels 4-7.
-adc.WriteRegister(adcHandle, 6, 0x55)   # Input range for B-side channels 0-3.
-adc.WriteRegister(adcHandle, 7, 0x55)   # Input range for B-side channels 4-7.
+def SelectChannelForConversion(chip, AChannel, BChannel):
+  # Write two 4-bit fields selecting the channel for the A side (lower nybble) and B side (upper nybble).
+  chip.WriteRegister(3, ((BChannel & 0xf) << 4) | (AChannel & 0xf))
 
-# Write two 4-bit fields selecting the channel for the A side (lower nybble) and B side (upper nybble).
-adc.WriteRegister(adcHandle, 3, 0x00)
+def DisplayAllRegisters(chip):
+  # Read all registers other than the sequencer stack registers.
+  # The configuration register (0x02) should be zero because we have not written to it yet.
+  # The other 5 (channel select 0x03, and input range registers) should be as left during any previous write.
+  # Retrieve the register values using both the single-read method and the multi-read method.
+  reg2 = chip.ReadRegister(2)
+  reg3 = chip.ReadRegister(3)
+  reg4 = chip.ReadRegister(4)
+  reg5 = chip.ReadRegister(5)
+  reg6 = chip.ReadRegister(6)
+  reg7 = chip.ReadRegister(7)
 
-# Read all registers other than the sequencer stack registers.
-# The configuration register (0x02) should be zero because we have not written to it yet.
-# The other 5 (channel select 0x03, and input range registers) should be as we wrote them above.
-values = adc.ReadRegisters(adcHandle, [0x02, 0x03, 0x04, 0x05, 0x06, 0x07])
-print(values)
+  print(f"Register 2: {reg2:04x}, Register 3: {reg3:04x}, register 4: {reg4:04x}, register 5: {reg5:04x}, register 6: {reg6:04x}, register 7: {reg7:04x}")
 
-# Normal acquisition mode is started by defining the channels to be read
-# on the A side and the B side.  Typically, just read all 8 channels in order
-# on each side.
-# Note that diagnostic channel 8 (Vcc) is added to the A side, 
-#      and diagnostic channel 9 (Valdo) is added to the B side.
-# Note that the two arrays must be the same size.
-# Note that all values in both arrays are limited to physical channels 0-7 plus
-#      8 (Vcc), 9 (Valdo), and 11 (self-test).  Thus, they fit in a 4-bit field.
-adc.DefineSequence(adcHandle, [0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 1, 2, 3, 4, 5, 6, 7, 9])
+  registers = chip.ReadRegisters([2, 3, 4, 5, 6, 7])
+  for v in registers:
+    print(f"{v:04x}", end=" ")
+  print()
 
-# Read the nine sequencer stack registers that we used (of the available 32).
-# Note that they should all reflect the two arrays written, where each A and B
-# array element are merged using the form B[i] << 4 | A[i].  The high 4-bit nybble
-# reflects what was written in the B-side array, and the low 4-bit nybble is the A-side.
-# Note the last value should have the 0x100 bit set (adding 256 to its decimal value),
-#      which indicates it is the final sequencer register used in the stack.
-#      The hardware stops converting channels after this register.
-values = adc.ReadRegisters(adcHandle, [0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28])
-print(values)
+def ConvertAChannelPair(chip, AChannel, BChannel):
+  # Programmatically convert a single channel for A side and one for B side.
+  # This is used for calibration or other setup, but not for data acquisition,
+  # as it is much slower than DefineConversionSequence() / Start().
+  (aconv, bconv) = chip.ConvertPair(AChannel, BChannel)
 
-# Read all values previously set up by DefineSequence().  The size of the returned array
-# is the sum of the sizes of the A-side and B-side arrays used in DefineSequence().  All A-side
-# values are returned, followed by all B-side values.
-# Note the numeric values of the conversions are adjusted to be single-sided rather than
-#      the native bipolar conversions done by the chip.  The smallest analog value presented
-#      to the chip will be converted to 0x0000, and the largest analog value will be converted to 0xffff.
-values = adc.ReadConversions(adcHandle)
-print(values)
+  # The raw value from the ADC is a signed value between -32768 - 32767.
+  # Correct for single-sided interpretation by adding 32768 and dropping any overflow.
+  aconvunsigned = (aconv + 0x8000) & 0x0000ffff
+  bconvunsigned = (bconv + 0x8000) & 0x0000ffff
 
-adc.terminate(adcHandle)
+  print(f"A channel: {aconv} ({aconvunsigned}U), B channel {bconv} ({bconvunsigned}U)")
+
+def DefineConversionSequence(chip):
+  # Normal acquisition mode is started by defining the channels to be read
+  # on the A side and the B side.  Typically, just read all 8 channels in order
+  # on each side.
+  # Note that diagnostic channel 8 (Vcc) is added to the A side, 
+  #      and diagnostic channel 9 (Valdo) is added to the B side.
+  # Note that the two arrays must be the same size.
+  # Note that all values in both arrays are limited to physical channels 0-7 plus
+  #      8 (Vcc), 9 (Valdo), and 11 (self-test).  Thus, they fit in a 4-bit field.
+  print("Defining conversion sequence")
+  Achannels = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+  Bchannels = [0, 1, 2, 3, 4, 5, 6, 7, 9]
+  chip.DefineSequence(Achannels, Bchannels)
+
+  reg2 = chip.ReadRegister(2)
+  print(f"After defining a sequence, configuration register is {reg2:04x}")
+
+def ConvertSequence(chip):
+  # Convert all A side and B side channels previously configured through a
+  # call to DefineConversionSequence().
+  # Note that this mechanism is not used for production data acquisition,
+  # since it is slow, but can be useful for setup and calibration.
+  conversionvalues = chip.ReadConversions()
+
+  linecounter = 4
+  for i, conversion in enumerate(conversionvalues):
+    conversion_differential = (conversion - 65536) if (conversion & 0x8000) != 0 else conversion
+    conversion_single_ended = (conversion + 0x8000) & 0x0000ffff
+    print(f"Channel {i:2}: {conversion:4x} = {conversion_differential:5} -> {conversion_single_ended:5}", end=" ")
+    linecounter = linecounter - 1
+    if linecounter <= 0:
+      print()
+      linecounter = 4
+
+  conversion = conversionvalues[8]
+
+  aconv = (conversion >> 16) & 0x0000ffff
+  bconv = (conversion & 0x0000ffff)
+  print(f"Vcc {aconv},  Vldo {bconv}")
+
+# Exercise all the capabilities described in the functions above.
+# Note the 'with' syntax that allows the AD7616 object to be closed
+# automatically when it goes out of scope when control falls off the
+# indented code.
+with AD7616() as chip:
+  SetConversionScaleForAllChannels(chip)
+  SelectChannelForConversion(chip, AChannel=0, BChannel=0)
+  DisplayAllRegisters(chip)
+
+  ConvertAChannelPair(chip, AChannel=0, BChannel=0)
+
+  # Define a conversion sequence.  This will apply from this point on.
+  # Note that calls to ConvertAChannelPair() are not valid after this.
+  # The same converstions are performed by ConvertSequence() (once)
+  # and Start() (many times on a timer basis).
+  DefineConversionSequence(chip)
+
+  for _ in range(5):
+    ConvertSequence(chip)
+    time.sleep(.100000)
+
+  # Start a periodic conversion, specifying the period in ms.  Sub-millisecond
+  # values are not allowed, only integer multiples of one millisecond.
+  # After Start(), and code can be run, such as examining the file system
+  # for a signal to stop, or accepting input from the user.  Sleep() is just for example.
+  chip.Start(10, "./", "trake.csv")
+  time.sleep(10)
+  chip.Stop()
+
 ```

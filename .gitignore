@@ -56,3 +56,5 @@ src/spi
 src/tr
 src/data/data.csv
 src/__pycache__/*
+RandD/spi
+src/trake.csv
