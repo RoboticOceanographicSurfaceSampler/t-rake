@@ -3,31 +3,38 @@ from ad7616_api import AD7616
 
 def SetConversionScaleForAllChannels(chip):
   # Write an input range of +-2.5V to all channels.
-  chip.WriteRegister(4, 0x55)   # Input range for A-side channels 0-3.
-  chip.WriteRegister(5, 0x55)   # Input range for A-side channels 4-7.
-  chip.WriteRegister(6, 0x55)   # Input range for B-side channels 0-3.
-  chip.WriteRegister(7, 0x55)   # Input range for B-side channels 4-7.
+  range = AD7616.Range.PLUS_MINUS_2_5V.value << 6 | AD7616.Range.PLUS_MINUS_2_5V.value << 4 | AD7616.Range.PLUS_MINUS_2_5V.value << 2 | AD7616.Range.PLUS_MINUS_2_5V.value
+  chip.WriteRegister(AD7616.Register.RANGEA_0_3.value, range)   # Input range for A-side channels 0-3.
+  chip.WriteRegister(AD7616.Register.RANGEA_4_7.value, range)   # Input range for A-side channels 4-7.
+  chip.WriteRegister(AD7616.Register.RANGEB_0_3.value, range)   # Input range for B-side channels 0-3.
+  chip.WriteRegister(AD7616.Register.RANGEB_4_7.value, range)   # Input range for B-side channels 4-7.
 
 def SelectChannelForConversion(chip, AChannel, BChannel):
   # Write two 4-bit fields selecting the channel for the A side (lower nybble) and B side (upper nybble).
-  chip.WriteRegister(3, ((BChannel & 0xf) << 4) | (AChannel & 0xf))
-
+  chip.WriteRegister(AD7616.Register.CHANNELSEL.value, ((BChannel & 0xf) << 4) | (AChannel & 0xf))
 
 def DisplayAllRegisters(chip):
   # Read all registers other than the sequencer stack registers.
   # The configuration register (0x02) should be zero because we have not written to it yet.
   # The other 5 (channel select 0x03, and input range registers) should be as left during any previous write.
   # Retrieve the register values using both the single-read method and the multi-read method.
-  reg2 = chip.ReadRegister(2)
-  reg3 = chip.ReadRegister(3)
-  reg4 = chip.ReadRegister(4)
-  reg5 = chip.ReadRegister(5)
-  reg6 = chip.ReadRegister(6)
-  reg7 = chip.ReadRegister(7)
+  config_reg = chip.ReadRegister(AD7616.Register.CONFIGURATION.value)
+  chan_reg = chip.ReadRegister(AD7616.Register.CHANNELSEL.value)
+  rangeA0_3_reg = chip.ReadRegister(AD7616.Register.RANGEA_0_3.value)
+  rangeA4_7 = chip.ReadRegister(AD7616.Register.RANGEA_4_7.value)
+  rangeB0_3 = chip.ReadRegister(AD7616.Register.RANGEB_0_3.value)
+  rangeB4_7 = chip.ReadRegister(AD7616.Register.RANGEB_4_7.value)
 
-  print(f"Register 2: {reg2:04x}, Register 3: {reg3:04x}, register 4: {reg4:04x}, register 5: {reg5:04x}, register 6: {reg6:04x}, register 7: {reg7:04x}")
+  print("Registers:")
+  print(f"Configuration: {config_reg:04x}, Channel: {chan_reg:04x}, Range A 0-3: {rangeA0_3_reg:04x}, Range A 4-7: {rangeA4_7:04x}, Range B 0-3: {rangeB0_3:04x}, Range B 4-7: {rangeB4_7:04x}")
 
-  registers = chip.ReadRegisters([2, 3, 4, 5, 6, 7])
+  addresses = [AD7616.Register.CONFIGURATION.value, 
+               AD7616.Register.CHANNELSEL.value, 
+               AD7616.Register.RANGEA_0_3.value, 
+               AD7616.Register.RANGEA_4_7.value, 
+               AD7616.Register.RANGEB_0_3.value, 
+               AD7616.Register.RANGEB_4_7.value]
+  registers = chip.ReadRegisters(addresses)
   for v in registers:
     print(f"{v:04x}", end=" ")
   print()
@@ -43,7 +50,7 @@ def ConvertAChannelPair(chip, AChannel, BChannel):
   aconvunsigned = (aconv + 0x8000) & 0x0000ffff
   bconvunsigned = (bconv + 0x8000) & 0x0000ffff
 
-  print(f"A channel: {aconv} ({aconvunsigned}U), B channel {bconv} ({bconvunsigned}U)")
+  print(f"A channel {AChannel}: {aconv} ({aconvunsigned}U), B channel {BChannel}: {bconv} ({bconvunsigned}U)")
 
 def DefineConversionSequence(chip):
   # Normal acquisition mode is started by defining the channels to be read
@@ -59,8 +66,8 @@ def DefineConversionSequence(chip):
   Bchannels = [0, 1, 2, 3, 4, 5, 6, 7, 9]
   chip.DefineSequence(Achannels, Bchannels)
 
-  reg2 = chip.ReadRegister(2)
-  print(f"After defining a sequence, configuration register is {reg2:04x}")
+  configRegister = chip.ReadRegister(AD7616.Register.CONFIGURATION.value)
+  print(f"After defining a sequence, configuration register is {configRegister:04x}")
 
 def ConvertSequence(chip):
   # Convert all A side and B side channels previously configured through a
@@ -90,7 +97,9 @@ def ConvertSequence(chip):
 # Note the 'with' syntax that allows the AD7616 object to be closed
 # automatically when it goes out of scope when control falls off the
 # indented code.
-with AD7616() as chip:
+# NOTE that if the print_diagnostic argument to the constructor is True, the C driver
+#      code will emit diagnostic messages to the console.
+with AD7616(print_diagnostic=False) as chip:
   SetConversionScaleForAllChannels(chip)
   SelectChannelForConversion(chip, AChannel=0, BChannel=0)
   DisplayAllRegisters(chip)

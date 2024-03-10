@@ -70,7 +70,10 @@ typedef struct {
     unsigned spi_mosi_pin;
     unsigned spi_miso_pin;
     unsigned spi_errorcode;
+    unsigned spi_flags;
 } self_t;
+
+#define PRINT_DIAG(x) (x).spi_flags & 0x1
 
 static self_t spidef = {};
 static self_t spidefault = {0, 0, 0, 0, 0};
@@ -91,7 +94,6 @@ self_t spi_initialize()
         spidef.spi_errorcode = errorcode;
         return spidef;
     }
-    printf("Initialized pigpio\n");
 
     // Default to bus 1, device 0
     spidef.spi_cs_pin = SPI1_CS0_Pin;
@@ -99,7 +101,6 @@ self_t spi_initialize()
     spidef.spi_mosi_pin = SPI1_MOSI_Pin;
     spidef.spi_miso_pin = SPI1_MISO_Pin;
 
-    printf("Resetting the A/D\n");
     gpioSetMode(RESETPin, PI_OUTPUT);
     gpioSetMode(ADC_SER1W_Pin, PI_OUTPUT);
 
@@ -196,7 +197,8 @@ void spi_terminate(self_t self)
 void spi_writeregister(self_t self, unsigned address, unsigned value)
 {
     // Always start with a conversion.
-    printf("Starting Write to register %d (%d) with a conversion\n", address, value);
+    if (PRINT_DIAG(self))
+        printf("Starting Write to register %d (%d) with a conversion\n", address, value);
     gpioWrite(ADC_CONVST_Pin, 1);
     gpioWrite(ADC_CONVST_Pin, 0);
     while (gpioRead(ADC_BUSY_Pin) != 0)
@@ -235,7 +237,8 @@ void spi_writeregister(self_t self, unsigned address, unsigned value)
     double elapsed = (double)(end - start);
 	long tpElapsed = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
 
-    printf("Register write used %lf ms CPU, done in %lu us\n\n", elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
+    if (PRINT_DIAG(self))
+        printf("Register write used %lf ms CPU, done in %lu us\n\n", elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
 }
 
 //
@@ -276,7 +279,8 @@ unsigned spi_readregister(self_t self, unsigned address)
 
     spi_idle(&self);
 
-    printf("Read register %d: %04x\n", address, result);
+    if (PRINT_DIAG(self))
+        printf("Read register %d: %04x\n", address, result);
     return result;
 }
 
@@ -301,7 +305,8 @@ unsigned spi_readregister(self_t self, unsigned address)
 void spi_readregisters(self_t self, unsigned count, unsigned* addresses, unsigned* values)
 {
     // Always start with a conversion.
-    printf("Starting Read from %d registers\n", count);
+    if (PRINT_DIAG(self))
+        printf("Starting Read from %d registers\n", count);
     gpioWrite(ADC_CONVST_Pin, 1);
     gpioWrite(ADC_CONVST_Pin, 0);
     while (gpioRead(ADC_BUSY_Pin) != 0)
@@ -392,7 +397,8 @@ void spi_readconversion(self_t self, unsigned count, unsigned* conversions)
     double elapsed = (double)(end - start);
 	long tpElapsed = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
 
-    // printf("%d conversions used %lf ms CPU, done in %lu us\n\n", count, elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
+    if (PRINT_DIAG(self))
+        printf("%d conversions used %lf ms CPU, done in %lu us\n\n", count, elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
 }
 
 //
@@ -515,9 +521,10 @@ unsigned spi_convertpair(self_t self, unsigned channelA, unsigned channelB)
 // Returns: An opaque pointer to the returned value.  Currently NULL.
 //
 #define FilePathLength 1000
-static char AcquisitionFilePath[FilePathLength];      // Full path to filename.
-static int AcquisitionPeriod_ms = 10;       // Set by Start().
-static int quit = 0;                        // Cleared by Start(), set by Stop().  The thread stops when set.
+static char TimeColumnName[FilePathLength];     // Column header for time stamp column.
+static char AcquisitionFilePath[FilePathLength];// Full path to filename.
+static int AcquisitionPeriod_ms = 10;           // Set by Start().
+static int quit = 0;                            // Cleared by Start(), set by Stop().  The thread stops when set.
 
 void* DoDataAcquisition(void* vargp)
 {
@@ -533,7 +540,7 @@ void* DoDataAcquisition(void* vargp)
     {
         // Create a new file and write the CSV header.  Always close the file to flush to disk.
         acquisitionFile = fopen(AcquisitionFilePath, "w");
-        fprintf(acquisitionFile, "Tick");
+        fprintf(acquisitionFile, TimeColumnName);
         for (unsigned i = 0; i < SequenceSize; i++)
         {
             fprintf(acquisitionFile, ",Channel%d", LastDefinedSequence[i]);
@@ -546,8 +553,6 @@ void* DoDataAcquisition(void* vargp)
     unsigned long nextticktime_ns = starttime_ns;
     do
     {
-        // printf("Printing from DoDataAcquisition\n");
-
         // SequenceSize is filled out by spi_definesequence(), and is the full size, including all A and B channels.
         if (SequenceSize > 0)
         {
@@ -620,7 +625,8 @@ void spi_start(self_t self, unsigned period, char* path, char* filename)
         return;
     }
 
-    printf("Starting thread using path '%s' and filename '%s'\n", path, filename);
+    if (PRINT_DIAG(self))
+        printf("Starting thread using path '%s' and filename '%s'\n", path, filename);
     int error = 1;
     strncpy(AcquisitionFilePath, path, FilePathLength);
     int remaining = FilePathLength - strlen(AcquisitionFilePath) - 1;
@@ -638,7 +644,11 @@ void spi_start(self_t self, unsigned period, char* path, char* filename)
     {
         strncpy(AcquisitionFilePath, "./trake.csv", FilePathLength);
     }
-    printf("Starting thread with period %d, saving data to %s\n", period, AcquisitionFilePath);
+    if (PRINT_DIAG(self))
+        printf("Starting thread with period %d, saving data to %s\n", period, AcquisitionFilePath);
+
+    strncpy(TimeColumnName, filename, FilePathLength);
+    strncat(TimeColumnName, " + ms", 6);
 
     AcquisitionPeriod_ms = period;
     quit = 0;
@@ -664,10 +674,12 @@ void spi_stop(self_t self)
         return;
     }
 
-    printf("Signaling thread to stop and waiting...");
+    if (PRINT_DIAG(self))
+        printf("Signaling thread to stop and waiting...");
     quit = 1;
     pthread_join(thread_id, NULL);
-    printf("stopped\n");
+    if (PRINT_DIAG(self))
+        printf("stopped\n");
 
     thread_id = 0;
 }

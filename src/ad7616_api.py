@@ -1,5 +1,5 @@
 import pathlib
-import time
+from enum import Enum
 from ctypes import *
 
 class SPIDEF(Structure):
@@ -7,7 +7,8 @@ class SPIDEF(Structure):
                 ("spi_sclk_pin", c_uint32),
                 ("spi_mosi_pin", c_uint32),
                 ("spi_miso_pin", c_uint32),
-                ("spi_errorcode", c_int32)]
+                ("spi_errorcode", c_int32),
+                ("spi_flags", c_int32)]
 
 
 
@@ -16,11 +17,26 @@ class AD7616:
     device = 0
     driver = None
     handle = None
+    print_diagnostic = False
     sequenceLength = 0
 
-    def __init__(self, bus=1, device=0):
+    class Register(Enum):
+        CONFIGURATION = 2
+        CHANNELSEL = 3
+        RANGEA_0_3 = 4
+        RANGEA_4_7 = 5
+        RANGEB_0_3 = 6
+        RANGEB_4_7 = 7
+        
+    class Range(Enum):
+        PLUS_MINUS_10V = 0
+        PLUS_MINUS_2_5V = 1
+        PLUS_MINUS_5V = 2
+
+    def __init__(self, bus=1, device=0, print_diagnostic=False):
         self.bus = bus
         self.device = device
+        self.print_diagnostic = print_diagnostic
         self.sequenceLength = 0
 
     def __enter__(self):
@@ -30,6 +46,8 @@ class AD7616:
         self.driver.spi_initialize.restype = SPIDEF
 
         self.handle = self.driver.spi_initialize()
+        if (self.print_diagnostic):
+            self.handle.spi_flags |= 1
         self.driver.spi_open(self.handle, self.bus, self.device)
 
         return self
