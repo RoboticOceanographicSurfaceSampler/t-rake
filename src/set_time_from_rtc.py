@@ -35,7 +35,7 @@ def SetUTCTimeFromRTC():
   print(f"Setting system UTC time from RTC: {month:02}-{day:02}-{year:02} {hour24:2}:{minute:02}:{second:02}")
 
   datetime = f"{year}-{month}-{day} {hour24}:{minute}:{second}"
-  os.system(f'sudo date --set "{datetime}"')
+  os.system(f'sudo date --utc --set "{datetime}"')
 
 SetUTCTimeFromRTC()
 
