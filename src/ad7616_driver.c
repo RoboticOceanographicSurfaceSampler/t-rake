@@ -587,7 +587,7 @@ void* DoDataAcquisition(void* vargp)
 
         struct timespec tpNow;
         clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
-        now_ns = tpNow.tv_sec * 1000*1000*1000 + tpNow.tv_nsec;
+        now_ns = (unsigned long long)tpNow.tv_sec * (unsigned long long)(1000*1000*1000) + (unsigned long long)tpNow.tv_nsec;
         nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
         while (nextticktime_ns < now_ns) {
             nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
