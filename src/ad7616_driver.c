@@ -585,13 +585,13 @@ void* DoDataAcquisition(void* vargp)
             acquisitionFile = NULL;
         }
 
-        printf("Acquired data, computing next tick time\n");
         struct timespec tpNow;
         clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
         now_ns = tpNow.tv_sec * 1000*1000*1000 + tpNow.tv_nsec;
         nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
         while (nextticktime_ns < now_ns) {
             nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
+            printf("Next tick in the past, now = %llu ns, new next tick is %llu ns\n", now_ns, nextticktime_ns);
         }
 
         unsigned long long timeleftinperiod_ns = nextticktime_ns - now_ns;
