@@ -553,6 +553,8 @@ void* DoDataAcquisition(void* vargp)
     unsigned long nextticktime_ns = starttime_ns;
     do
     {
+        unsigned long timeleftinperiod_ns = 0;
+
         // SequenceSize is filled out by spi_definesequence(), and is the full size, including all A and B channels.
         if (SequenceSize > 0)
         {
@@ -572,7 +574,8 @@ void* DoDataAcquisition(void* vargp)
 
             // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
             acquisitionFile = fopen(AcquisitionFilePath, "a");
-            fprintf(acquisitionFile, "%lu", ((nextticktime_ns-starttime_ns) / (1000*1000)));
+            //fprintf(acquisitionFile, "%lu", ((nextticktime_ns-starttime_ns) / (1000*1000)));
+            fprintf(acquisitionFile, "%lu", ((timeleftinperiod_ns) / (1000*1000)));
             for (unsigned i = 0; i < SequenceSize; i++)
             {
                 fprintf(acquisitionFile, ",%d", separatedConversion[i]);
@@ -590,7 +593,7 @@ void* DoDataAcquisition(void* vargp)
             nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
         }
 
-        unsigned long timeleftinperiod_ns = nextticktime_ns - now_ns;
+        timeleftinperiod_ns = nextticktime_ns - now_ns;
         // DIAGNOSTIC - Uncomment this line to get info on how much time is spent converting.
         // printf("Conversion time was %lu ns, sleeping %lu ns\n", (AcquisitiontPeriod_ns - timeleftinperiod_ns), timeleftinperiod_ns);
         usleep(timeleftinperiod_ns / 1000);
