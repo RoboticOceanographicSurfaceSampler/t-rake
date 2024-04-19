@@ -585,6 +585,7 @@ void* DoDataAcquisition(void* vargp)
             acquisitionFile = NULL;
         }
 
+        printf("Acquired data, computing next tick time\n");
         struct timespec tpNow;
         clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
         now_ns = tpNow.tv_sec * 1000*1000*1000 + tpNow.tv_nsec;
