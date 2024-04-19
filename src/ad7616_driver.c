@@ -588,12 +588,12 @@ void* DoDataAcquisition(void* vargp)
         struct timespec tpNow;
         clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
         unsigned long now_ns = tpNow.tv_sec * 1000*1000*1000 + tpNow.tv_nsec;
-        unsigned long nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
+        nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
         while (nextticktime_ns < now_ns) {
             nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
         }
 
-        timeleftinperiod_ns = nextticktime_ns - now_ns;
+        unsigned long timeleftinperiod_ns = nextticktime_ns - now_ns;
         // DIAGNOSTIC - Uncomment this line to get info on how much time is spent converting.
         // printf("Conversion time was %lu ns, sleeping %lu ns\n", (AcquisitiontPeriod_ns - timeleftinperiod_ns), timeleftinperiod_ns);
         usleep(timeleftinperiod_ns / 1000);
