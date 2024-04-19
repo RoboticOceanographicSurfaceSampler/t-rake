@@ -575,7 +575,7 @@ void* DoDataAcquisition(void* vargp)
             // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
             acquisitionFile = fopen(AcquisitionFilePath, "a");
             //fprintf(acquisitionFile, "%lu", ((nextticktime_ns-starttime_ns) / (1000*1000)));
-            fprintf(acquisitionFile, "%lu", ((now_ns-starttime_ns) / 1000));
+            fprintf(acquisitionFile, "%lu(%u)", ((now_ns-starttime_ns) / 1000), sizeof(unsigned long));
             for (unsigned i = 0; i < SequenceSize; i++)
             {
                 fprintf(acquisitionFile, ",%d", separatedConversion[i]);
