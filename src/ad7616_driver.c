@@ -534,7 +534,7 @@ void* DoDataAcquisition(void* vargp)
     // Checkpoint the start time in nanoseconds.
     struct timespec tpStart;
     clock_gettime(CLOCK_MONOTONIC_RAW, &tpStart);
-    unsigned long starttime_ns = tpStart.tv_sec * 1000*1000*1000 + tpStart.tv_nsec;
+    unsigned long long starttime_ns = tpStart.tv_sec * 1000*1000*1000 + tpStart.tv_nsec;
 
     if (SequenceSize > 0)
     {
@@ -550,8 +550,8 @@ void* DoDataAcquisition(void* vargp)
     }
     acquisitionFile = NULL;
 
-    unsigned long nextticktime_ns = starttime_ns;
-    unsigned long now_ns = starttime_ns;
+    unsigned long long nextticktime_ns = starttime_ns;
+    unsigned long long now_ns = starttime_ns;
     do
     {
 
