@@ -551,9 +551,9 @@ void* DoDataAcquisition(void* vargp)
     acquisitionFile = NULL;
 
     unsigned long nextticktime_ns = starttime_ns;
+    unsigned long timeleftinperiod_ns = 0;
     do
     {
-        unsigned long timeleftinperiod_ns = 0;
 
         // SequenceSize is filled out by spi_definesequence(), and is the full size, including all A and B channels.
         if (SequenceSize > 0)
