@@ -523,18 +523,18 @@ unsigned spi_convertpair(self_t self, unsigned channelA, unsigned channelB)
 #define FilePathLength 1000
 static char TimeColumnName[FilePathLength];     // Column header for time stamp column.
 static char AcquisitionFilePath[FilePathLength];// Full path to filename.
-static int AcquisitionPeriod_ms = 10;           // Set by Start().
+static unsigned long long AcquisitionPeriod_ms = 10;           // Set by Start().
 static int quit = 0;                            // Cleared by Start(), set by Stop().  The thread stops when set.
 
 void* DoDataAcquisition(void* vargp)
 {
     FILE* acquisitionFile = NULL;
-    unsigned long AcquisitiontPeriod_ns = AcquisitionPeriod_ms * 1000*1000;
+    unsigned long long AcquisitiontPeriod_ns = AcquisitionPeriod_ms * (unsigned long long)(1000*1000);
 
     // Checkpoint the start time in nanoseconds.
     struct timespec tpStart;
     clock_gettime(CLOCK_MONOTONIC_RAW, &tpStart);
-    unsigned long long starttime_ns = tpStart.tv_sec * 1000*1000*1000 + tpStart.tv_nsec;
+    unsigned long long starttime_ns = (unsigned long long)tpStart.tv_sec * (unsigned long long)(1000*1000*1000) + (unsigned long long)tpStart.tv_nsec;
 
     if (SequenceSize > 0)
     {
