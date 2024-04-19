@@ -596,7 +596,7 @@ void* DoDataAcquisition(void* vargp)
 
         unsigned long long timeleftinperiod_ns = nextticktime_ns - now_ns;
         // DIAGNOSTIC - Uncomment this line to get info on how much time is spent converting.
-         printf("Conversion time was %llu ns, sleeping %llu ns\n", (AcquisitiontPeriod_ns - timeleftinperiod_ns), timeleftinperiod_ns);
+        // printf("Conversion time was %llu ns, sleeping %llu ns\n", (AcquisitiontPeriod_ns - timeleftinperiod_ns), timeleftinperiod_ns);
         usleep(timeleftinperiod_ns / 1000);
     } while (!quit);
 
