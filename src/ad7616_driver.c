@@ -551,7 +551,7 @@ void* DoDataAcquisition(void* vargp)
     acquisitionFile = NULL;
 
     unsigned long nextticktime_ns = starttime_ns;
-    unsigned long timeleftinperiod_ns = 0;
+    unsigned long now_ns = starttime_ns;
     do
     {
 
@@ -575,7 +575,7 @@ void* DoDataAcquisition(void* vargp)
             // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
             acquisitionFile = fopen(AcquisitionFilePath, "a");
             //fprintf(acquisitionFile, "%lu", ((nextticktime_ns-starttime_ns) / (1000*1000)));
-            fprintf(acquisitionFile, "%lu", ((timeleftinperiod_ns)));
+            fprintf(acquisitionFile, "%lu", ((now_ns) / 1000));
             for (unsigned i = 0; i < SequenceSize; i++)
             {
                 fprintf(acquisitionFile, ",%d", separatedConversion[i]);
@@ -588,7 +588,7 @@ void* DoDataAcquisition(void* vargp)
         struct timespec tpNow;
         clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
         unsigned long now_ns = tpNow.tv_sec * 1000*1000*1000 + tpNow.tv_nsec;
-        nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
+        unsigned long nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
         while (nextticktime_ns < now_ns) {
             nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
         }
