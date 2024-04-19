@@ -529,7 +529,7 @@ static int quit = 0;                            // Cleared by Start(), set by St
 void* DoDataAcquisition(void* vargp)
 {
     FILE* acquisitionFile = NULL;
-    unsigned long long AcquisitiontPeriod_ns = AcquisitionPeriod_ms * (unsigned long long)(1000*1000);
+    unsigned long long AcquisitionPeriod_ns = AcquisitionPeriod_ms * (unsigned long long)(1000*1000);
 
     // Checkpoint the start time in nanoseconds.
     struct timespec tpStart;
@@ -551,7 +551,8 @@ void* DoDataAcquisition(void* vargp)
     acquisitionFile = NULL;
 
     unsigned long long nextticktime_ns = starttime_ns;
-    unsigned long long now_ns = starttime_ns;
+    unsigned long long now_ns = starttime_ns + AcquisitionPeriod_ns;
+    unsigned long long timeleftinperiod_ns = nextticktime_ns - now_ns;
     do
     {
 
@@ -575,7 +576,7 @@ void* DoDataAcquisition(void* vargp)
             // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
             acquisitionFile = fopen(AcquisitionFilePath, "a");
             //fprintf(acquisitionFile, "%lu", ((nextticktime_ns-starttime_ns) / (1000*1000)));
-            fprintf(acquisitionFile, "%llu", ((now_ns-starttime_ns) / 1000));
+            fprintf(acquisitionFile, "%llu(%llu)", ((now_ns-starttime_ns) / 1000), (timeleftinperiod_ns));
             for (unsigned i = 0; i < SequenceSize; i++)
             {
                 fprintf(acquisitionFile, ",%d", separatedConversion[i]);
@@ -588,13 +589,13 @@ void* DoDataAcquisition(void* vargp)
         struct timespec tpNow;
         clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
         now_ns = (unsigned long long)tpNow.tv_sec * (unsigned long long)(1000*1000*1000) + (unsigned long long)tpNow.tv_nsec;
-        nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
+        nextticktime_ns = nextticktime_ns + AcquisitionPeriod_ns;
         while (nextticktime_ns < now_ns) {
-            nextticktime_ns = nextticktime_ns + AcquisitiontPeriod_ns;
+            nextticktime_ns = nextticktime_ns + AcquisitionPeriod_ns;
             printf("Next tick in the past, now = %llu ns, new next tick is %llu ns\n", now_ns, nextticktime_ns);
         }
 
-        unsigned long long timeleftinperiod_ns = nextticktime_ns - now_ns;
+        timeleftinperiod_ns = nextticktime_ns - now_ns;
         // DIAGNOSTIC - Uncomment this line to get info on how much time is spent converting.
         // printf("Conversion time was %llu ns, sleeping %llu ns\n", (AcquisitiontPeriod_ns - timeleftinperiod_ns), timeleftinperiod_ns);
         usleep(timeleftinperiod_ns / 1000);
