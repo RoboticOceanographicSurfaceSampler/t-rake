@@ -559,6 +559,10 @@ void* DoDataAcquisition(void* vargp)
         // SequenceSize is filled out by spi_definesequence(), and is the full size, including all A and B channels.
         if (SequenceSize > 0)
         {
+            struct timespec tpConvTime;
+            clock_gettime(CLOCK_MONOTONIC_RAW, &tpConvTime);
+            unsigned long long convert_ns = (unsigned long long)tpConvTime.tv_sec * (unsigned long long)(1000*1000*1000) + (unsigned long long)tpConvTime.tv_nsec;
+
             // We convert SequenceSize/2 samples, since A and B channels are packed into a single 32-bit value.
             unsigned conversions[64];
             spi_readconversion(spidef, SequenceSize/2, conversions);
@@ -576,7 +580,7 @@ void* DoDataAcquisition(void* vargp)
             // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
             acquisitionFile = fopen(AcquisitionFilePath, "a");
             //fprintf(acquisitionFile, "%lu", ((nextticktime_ns-starttime_ns) / (1000*1000)));
-            fprintf(acquisitionFile, "%llu(%llu)", ((now_ns-starttime_ns) / 1000), (timeleftinperiod_ns));
+            fprintf(acquisitionFile, "%llu(%llu)", ((convert_ns-starttime_ns) / 1000), (timeleftinperiod_ns));
             for (unsigned i = 0; i < SequenceSize; i++)
             {
                 fprintf(acquisitionFile, ",%d", separatedConversion[i]);
