@@ -67,6 +67,9 @@ def DefineConversionSequence(chip):
   chip.DefineSequence(Achannels, Bchannels)
 
   configRegister = chip.ReadRegister(AD7616.Register.CONFIGURATION.value)
+  configRegister |= 0x1c
+  chip.WriteRegister(AD7616.Register.CONFIGURATION.value, configRegister)
+  configRegister = chip.ReadRegister(AD7616.Register.CONFIGURATION.value)
   print(f"After defining a sequence, configuration register is {configRegister:04x}")
 
 def ConvertSequence(chip):
