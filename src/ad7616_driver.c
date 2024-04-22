@@ -571,8 +571,9 @@ void* DoDataAcquisition(void* vargp)
             unsigned separatedConversion[64];
             for (unsigned i = 0; i < SequenceSize / 2; i++)
             {
-                unsigned BConv = (conversions[i] >> 16) & 0xffff;
-                unsigned AConv = conversions[i] & 0xffff;
+                // A conversions are high-order, B are low-order.  See page 33 of 50 in AD7616 (Rev. 0)
+                unsigned AConv = (conversions[i] >> 16) & 0xffff;
+                unsigned BConv = conversions[i] & 0xffff;
                 separatedConversion[i] = AConv;
                 separatedConversion[i + (SequenceSize / 2)] = BConv;
             }
