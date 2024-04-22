@@ -62,8 +62,12 @@ def DefineConversionSequence(chip):
   # Note that all values in both arrays are limited to physical channels 0-7 plus
   #      8 (Vcc), 9 (Valdo), and 11 (self-test).  Thus, they fit in a 4-bit field.
   print("Defining conversion sequence")
-  Achannels = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-  Bchannels = [0, 1, 2, 3, 4, 5, 6, 7, 9]
+  #Achannels = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+  #Bchannels = [0, 1, 2, 3, 4, 5, 6, 7, 9]
+  #V3A    V2A    V1A    V0A     V7A   V6A    V5A    V4A     V4B    V5B    V6B    V7B    V0B    V1B    V2B    V3B
+  Achannels = [3, 2, 1, 0, 7, 6, 5, 4]
+  Bchannels = [4, 5, 6, 7, 0, 1, 2, 3]
+
   chip.DefineSequence(Achannels, Bchannels)
 
   configRegister = chip.ReadRegister(AD7616.Register.CONFIGURATION.value)
