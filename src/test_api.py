@@ -62,10 +62,14 @@ def DefineConversionSequence(chip):
   # Note that all values in both arrays are limited to physical channels 0-7 plus
   #      8 (Vcc), 9 (Valdo), and 11 (self-test).  Thus, they fit in a 4-bit field.
   print("Defining conversion sequence")
+  # Default mapping, including Vcc and Valdo
   #Achannels = [0, 1, 2, 3, 4, 5, 6, 7, 8]
   #Bchannels = [0, 1, 2, 3, 4, 5, 6, 7, 9]
-  #V3A    V2A    V1A    V0A     V7A   V6A    V5A    V4A     V4B    V5B    V6B    V7B    V0B    V1B    V2B    V3B
-  Achannels = [3, 2, 1, 0, 7, 6, 5, 4]
+
+  # A mapping that accounts for convenience trace routing on the board, resulting in:
+  # 1. Channels 0-3 and 4-7 are reversed on the A-side relative to the B-side
+  # 2. Board3 and Board4 are reversed
+  Achannels = [3, 2, 1, 0, 6, 7, 5, 4]
   Bchannels = [4, 5, 6, 7, 0, 1, 2, 3]
 
   chip.DefineSequence(Achannels, Bchannels)

@@ -390,15 +390,17 @@ void spi_readconversion(self_t self, unsigned count, unsigned* conversions)
 
     spi_idle(&self);
 
-    // Instrument for elapsed time.
-    struct timespec tpEnd;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &tpEnd);
-    clock_t end = clock();
-    double elapsed = (double)(end - start);
-	long tpElapsed = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
-
     if (PRINT_DIAG(self))
+    {
+        // Instrument for elapsed time.
+        struct timespec tpEnd;
+        clock_gettime(CLOCK_MONOTONIC_RAW, &tpEnd);
+        clock_t end = clock();
+        double elapsed = (double)(end - start);
+        long tpElapsed = ((tpEnd.tv_sec-tpStart.tv_sec)*(1000*1000*1000) + (tpEnd.tv_nsec-tpStart.tv_nsec)) / 1000 ;
+
         printf("%d conversions used %lf ms CPU, done in %lu us\n\n", count, elapsed * 1000.0 / (double)CLOCKS_PER_SEC, tpElapsed);
+    }
 }
 
 //
@@ -431,7 +433,6 @@ void spi_readconversion(self_t self, unsigned count, unsigned* conversions)
 // Returns: Nothing.
 //
 static unsigned SequenceSize = 0;
-static unsigned LastDefinedSequence[128];
 void spi_definesequence(self_t self, unsigned count, unsigned* Achannels, unsigned* Bchannels)
 {
     if (count > 32)
@@ -459,12 +460,6 @@ void spi_definesequence(self_t self, unsigned count, unsigned* Achannels, unsign
         BChannels[i] = BChannel;
     }
 
-    // Capture the last sequence.
-    for (unsigned i = 0; i < count; i++)
-    {
-        LastDefinedSequence[i] = AChannels[i];
-        LastDefinedSequence[i + count] = BChannels[i] + count;
-    }
     SequenceSize = count * 2;
 
     // Read the configuration register, set BURSTEN and SEQEN, write it back.
@@ -543,7 +538,7 @@ void* DoDataAcquisition(void* vargp)
         fprintf(acquisitionFile, TimeColumnName);
         for (unsigned i = 0; i < SequenceSize; i++)
         {
-            fprintf(acquisitionFile, ",Channel%d", /*LastDefinedSequence[i]*/i);
+            fprintf(acquisitionFile, ",Channel%d", i);
         }
         fprintf(acquisitionFile, "\n");
         fclose(acquisitionFile);
@@ -574,16 +569,15 @@ void* DoDataAcquisition(void* vargp)
                 // A conversions are high-order, B are low-order.  See page 33 of 50 in AD7616 (Rev. 0)
                 unsigned AConv = (conversions[i] >> 16) & 0xffff;
                 unsigned BConv = conversions[i] & 0xffff;
-                //AConv = (AConv + 0x8000) & 0xfff;
-                //BConv = (BConv + 0x8000) & 0xfff;
+                AConv = (AConv + 0x8000) & 0xffff;
+                BConv = (BConv + 0x8000) & 0xffff;
                 separatedConversion[i] = AConv;
                 separatedConversion[i + (SequenceSize / 2)] = BConv;
             }
 
             // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
             acquisitionFile = fopen(AcquisitionFilePath, "a");
-            //fprintf(acquisitionFile, "%lu", ((nextticktime_ns-starttime_ns) / (1000*1000)));
-            fprintf(acquisitionFile, "%llu(%llu)", ((convert_ns-starttime_ns) / 1000), (timeleftinperiod_ns));
+            fprintf(acquisitionFile, "%llu(%llu)", ((convert_ns-starttime_ns) / 1000), (timeleftinperiod_ns / 1000));
             for (unsigned i = 0; i < SequenceSize; i++)
             {
                 fprintf(acquisitionFile, ",%d", separatedConversion[i]);

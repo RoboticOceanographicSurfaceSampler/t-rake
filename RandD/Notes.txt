@@ -1,0 +1,18 @@
+Board1: Thermistor on Channel 10
+Board2: Thermistor on Channel 14
+Board3: Thermistor on Channel 6
+Board4: Thermistor on Channel 2
+
+The default straigh channel mapping looks like this:
+Ch0    Ch1    Ch2    Ch3    Ch4    Ch5    Ch6    Ch7    Ch8    Ch9    Ch10   Ch11   Ch12   Ch13   Ch14   Ch15
+[--------Board 4-------]    [--------Board 3-------]    [--------Board 1--------]   [--------Board 2--------]
+               T4                          T3                          T1                          T2     
+V0B    V1B    V2B    V3B     V4B   V5B    V6B    V7B     V0A    V1A    V2A    V3A    V4A    V5A    V6A    V7A
+
+A mapping that accounts for the convenience routing of traces on the board, resulting in:
+1. inversion of the 0-3 and 4-7 on the A-side relative to the B-side
+2. Board 3 and Board 4 are reversed
+Ch0    Ch1    Ch2    Ch3    Ch4    Ch5    Ch6    Ch7    Ch8    Ch9    Ch10   Ch11   Ch12   Ch13   Ch14   Ch15
+[--------Board 1-------]    [--------Board 2-------]    [--------Board 3--------]   [--------Board 4--------]
+               T4                          T3                          T1                          T2     
+V3A    V2A    V1A    V0A     V7A   V6A    V5A    V4A     V4B    V5B    V6B    V7B    V0B    V1B    V2B    V3B
