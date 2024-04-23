@@ -543,7 +543,7 @@ void* DoDataAcquisition(void* vargp)
         fprintf(acquisitionFile, TimeColumnName);
         for (unsigned i = 0; i < SequenceSize; i++)
         {
-            fprintf(acquisitionFile, ",Channel%d", LastDefinedSequence[i]);
+            fprintf(acquisitionFile, ",Channel%d", /*LastDefinedSequence[i]*/i);
         }
         fprintf(acquisitionFile, "\n");
         fclose(acquisitionFile);
