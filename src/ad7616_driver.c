@@ -60,6 +60,8 @@
 #define SPI1_MOSI_Pin 20    // Broadcom pin 20 (Pi pin 38)
 #define SPI1_MISO_Pin 19    // Broadcom pin 19 (Pi pin 35)
 
+#define POWER_LOW_Pin 27     // Broadcom pin 22 (Pi pin 13)
+
 //
 // This type is the handle returned by spi_initialize(), and
 // required by all subsequent calls.
@@ -103,6 +105,8 @@ self_t spi_initialize()
 
     gpioSetMode(RESETPin, PI_OUTPUT);
     gpioSetMode(ADC_SER1W_Pin, PI_OUTPUT);
+    gpioSetMode(POWER_LOW_Pin, PI_INPUT);
+    gpioSetPullUpDown(POWER_LOW_Pin, PI_PUD_UP);
 
     gpioWrite(ADC_SER1W_Pin, 0);        // 0 for 1-wire, 1 for 2-wire (doesn't seem to work, always 2-wire)
     usleep(100);
@@ -179,6 +183,13 @@ void spi_terminate(self_t self)
     gpioTerminate();
 }
 
+int read_powerlow()
+{
+    if (gpioRead(POWER_LOW_Pin) != 0)
+        return 1;
+
+    return 0;
+}
 
 //
 // Write a single value to a single register.  The first step after
