@@ -224,6 +224,13 @@ This function will stop the background data acquisition and writing of the file.
 
 *Note:* It is acceptable to call `Stop()` more than once with no `Start()`.  Only the first call will have any effect.
 
+### `ReadPowerLow(self) : LowPower`
+
+<b>Parameters:</b>  
+`self`: The instance of the AD7616 class object.  Typically supplied by the compiler, not the caller.  
+<b>Returns:</b> LowPower, and integer that is 0 for normal operation, or 1 for low-power condition.
+
+
 ### Example
 The following is a test program the exercises all the functionality of the AD7616 API.  It is intended to provide a starting point for future applications.
 
@@ -340,7 +347,16 @@ with AD7616() as chip:
   # After Start(), and code can be run, such as examining the file system
   # for a signal to stop, or accepting input from the user.  Sleep() is just for example.
   chip.Start(10, "./", "trake.csv")
-  time.sleep(10)
+
+  try:
+    power_low = 0
+
+    while power_low == 0:
+      time.sleep(1)
+      power_low = chip.ReadPowerLow()
+  except KeyboardInterrupt:
+    pass
+
   chip.Stop()
 
 ```

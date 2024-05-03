@@ -132,5 +132,14 @@ with AD7616(print_diagnostic=False) as chip:
   # After Start(), and code can be run, such as examining the file system
   # for a signal to stop, or accepting input from the user.  Sleep() is just for example.
   chip.Start(10, "./", "trake.csv")
-  time.sleep(10)
+
+  try:
+    power_low = 0
+
+    while power_low == 0:
+      time.sleep(1)
+      power_low = chip.ReadPowerLow()
+  except KeyboardInterrupt:
+    pass
+
   chip.Stop()
