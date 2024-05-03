@@ -186,9 +186,9 @@ void spi_terminate(self_t self)
 int read_powerlow()
 {
     if (gpioRead(POWER_LOW_Pin) != 0)
-        return 1;
+        return 0;   // High is false, not in low-power condition.
 
-    return 0;
+    return 1;       // Otherwise, true, in low-power condition.
 }
 
 //
