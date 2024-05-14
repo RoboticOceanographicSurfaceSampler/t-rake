@@ -620,10 +620,10 @@ void* DoDataAcquisition(void* vargp)
         }
 
         // Capture the low-voltage state.
-        if (gpioRead(POWER_LOW_Pin) != 0)
-            voltage_low = 0;        // Pin in high state, not in low-voltage condition.
-        else
-            voltage_low = 1;        // Otherwise in low-voltage condition.
+//        if (gpioRead(POWER_LOW_Pin) != 0)
+//            voltage_low = 0;        // Pin in high state, not in low-voltage condition.
+//        else
+//            voltage_low = 1;        // Otherwise in low-voltage condition.
 
         struct timespec tpNow;
         clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
