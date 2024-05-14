@@ -177,4 +177,4 @@ class AD7616:
         self.driver.spi_stop(self.handle)
 
     def ReadPowerLow(self):
-        return self.driver.read_powerlow()
+        return self.driver.read_powerlow(self.handle)

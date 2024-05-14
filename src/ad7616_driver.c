@@ -75,10 +75,20 @@ typedef struct {
     unsigned spi_flags;
 } self_t;
 
-#define PRINT_DIAG(x) (x).spi_flags & 0x1
+#define PRINT_DIAG_FLAG 0x1
+#define VOLTAGE_LOW_FLAG 0x2
+
+#define PRINT_DIAG(x) (x).spi_flags & PRINT_DIAG_FLAG
+#define VOLTAGE_LOW(x) (s).spi_flags & VOLTAGE_LOW_FLAG
+
+#define SET_FLAG(x, f) (s).spi_flags |= (f)
+#define RESET_FLAG(x, f) (s).spi_flags &= ~(f)
+
 
 static self_t spidef = {};
 static self_t spidefault = {0, 0, 0, 0, 0};
+
+static int acquiring = 0;                       // Set when DoDataAcquisition enters, cleared when it leaves.
 
 //
 // A call to spi_nitialize() is required before any other call.
@@ -183,12 +193,20 @@ void spi_terminate(self_t self)
     gpioTerminate();
 }
 
-int read_powerlow()
+int read_powerlow(self_t self)
 {
-    if (gpioRead(POWER_LOW_Pin) != 0)
-        return 0;   // High is false, not in low-power condition.
+    if (acquiring == 0)
+    {
+        if (gpioRead(POWER_LOW_Pin) != 0)
+            RESET_FLAG(self, VOLTAGE_LOW_FLAG);     // Pin in high state, not in low-voltage condition.
+        else
+            SET_FLAG(self, VOLTAGE_LOW_FLAG);       // Otherwise in low-voltage condition.
+    }
 
-    return 1;       // Otherwise, true, in low-power condition.
+    if (VOLTAGE_LOW(self) != 0)
+        return 1;
+
+    return 0;
 }
 
 //
@@ -452,8 +470,6 @@ void spi_definesequence(self_t self, unsigned count, unsigned* Achannels, unsign
         return;
     }
 
-    unsigned AChannels[32];
-    unsigned BChannels[32];
     unsigned sequencer = 0x20;
 
     for (unsigned i = 0; i < count; i++, sequencer++, Achannels++, Bchannels++)
@@ -466,9 +482,6 @@ void spi_definesequence(self_t self, unsigned count, unsigned* Achannels, unsign
         unsigned BChannel = (*Bchannels & 0xf);
         unsigned channeldata = BChannel << 4 | AChannel | ssren;
         spi_writeregister(self, sequencer, channeldata);
-
-        AChannels[i] = AChannel;
-        BChannels[i] = BChannel;
     }
 
     SequenceSize = count * 2;
@@ -534,6 +547,9 @@ static int quit = 0;                            // Cleared by Start(), set by St
 
 void* DoDataAcquisition(void* vargp)
 {
+    // Signal the acquisition thread is running.
+    acquiring = 1;
+
     FILE* acquisitionFile = NULL;
     unsigned long long AcquisitionPeriod_ns = AcquisitionPeriod_ms * (unsigned long long)(1000*1000);
 
@@ -598,6 +614,12 @@ void* DoDataAcquisition(void* vargp)
             acquisitionFile = NULL;
         }
 
+        // Capture the low-voltage state.
+        if (gpioRead(POWER_LOW_Pin) != 0)
+            RESET_FLAG(self, VOLTAGE_LOW_FLAG);     // Pin in high state, not in low-voltage condition.
+        else
+            SET_FLAG(self, VOLTAGE_LOW_FLAG);       // Otherwise in low-voltage condition.
+
         struct timespec tpNow;
         clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
         now_ns = (unsigned long long)tpNow.tv_sec * (unsigned long long)(1000*1000*1000) + (unsigned long long)tpNow.tv_nsec;
@@ -613,6 +635,8 @@ void* DoDataAcquisition(void* vargp)
         usleep(timeleftinperiod_ns / 1000);
     } while (!quit);
 
+    // Signal the acquisition thread is stopped.
+    acquiring = 0;
     return NULL;    
 }
 
