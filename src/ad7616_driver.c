@@ -88,7 +88,8 @@ typedef struct {
 static self_t spidef = {};
 static self_t spidefault = {0, 0, 0, 0, 0};
 
-static int acquiring = 0;                       // Set when DoDataAcquisition enters, cleared when it leaves.
+static int acquiring = 0;                   // Set when DoDataAcquisition enters, cleared when it leaves.
+static int voltage_low = 0;                 // Set to nonzero when low voltage condition is true.
 
 //
 // A call to spi_nitialize() is required before any other call.
@@ -193,20 +194,24 @@ void spi_terminate(self_t self)
     gpioTerminate();
 }
 
-int read_powerlow(self_t self)
+//
+// At any time the client can read the current state of the low-voltage
+// sensor.  If the acquisition thread is running, it will be responsible
+// for reading and caching the GPIO pin, or we do it here if the thread
+// is not running.
+//
+int read_powerlow()
 {
+    // While the acquisition thread is running, it will read this bit.
     if (acquiring == 0)
     {
         if (gpioRead(POWER_LOW_Pin) != 0)
-            RESET_FLAG(self, VOLTAGE_LOW_FLAG);     // Pin in high state, not in low-voltage condition.
+            voltage_low = 0;        // Pin in high state, not in low-voltage condition.
         else
-            SET_FLAG(self, VOLTAGE_LOW_FLAG);       // Otherwise in low-voltage condition.
+            voltage_low = 1;        // Otherwise in low-voltage condition.
     }
 
-    if (VOLTAGE_LOW(self) != 0)
-        return 1;
-
-    return 0;
+    return voltage_low;
 }
 
 //
@@ -616,9 +621,9 @@ void* DoDataAcquisition(void* vargp)
 
         // Capture the low-voltage state.
         if (gpioRead(POWER_LOW_Pin) != 0)
-            RESET_FLAG(self, VOLTAGE_LOW_FLAG);     // Pin in high state, not in low-voltage condition.
+            voltage_low = 0;        // Pin in high state, not in low-voltage condition.
         else
-            SET_FLAG(self, VOLTAGE_LOW_FLAG);       // Otherwise in low-voltage condition.
+            voltage_low = 1;        // Otherwise in low-voltage condition.
 
         struct timespec tpNow;
         clock_gettime(CLOCK_MONOTONIC_RAW, &tpNow);
