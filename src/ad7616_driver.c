@@ -79,10 +79,10 @@ typedef struct {
 #define VOLTAGE_LOW_FLAG 0x2
 
 #define PRINT_DIAG(x) (x).spi_flags & PRINT_DIAG_FLAG
-#define VOLTAGE_LOW(x) (s).spi_flags & VOLTAGE_LOW_FLAG
+#define VOLTAGE_LOW(x) (x).spi_flags & VOLTAGE_LOW_FLAG
 
-#define SET_FLAG(x, f) (s).spi_flags |= (f)
-#define RESET_FLAG(x, f) (s).spi_flags &= ~(f)
+#define SET_FLAG(x, f) (x).spi_flags |= (f)
+#define RESET_FLAG(x, f) (x).spi_flags &= ~(f)
 
 
 static self_t spidef = {};
