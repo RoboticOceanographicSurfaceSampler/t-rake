@@ -1,3 +1,3 @@
 #!/bin/bash
 
-echo "Starting trake code!"
+/home/trake/github/src/deploy.py

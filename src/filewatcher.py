@@ -5,7 +5,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 
-configurationpath = '/sonar/configuration'
+configurationpath = '/trake/configuration'
 
 
 class RunState:
@@ -17,10 +17,14 @@ class RunState:
         self.configuration = {}
         self.running = False
         self.runChange = False
+        self.voltageLow = False
 
     def is_running(self):
         return self.running
-    
+
+    def is_voltage_low(self):
+        return self.voltageLow
+        
     def is_runchange(self):
         return self.runChange
     
@@ -107,7 +111,7 @@ class Watcher:
         self.observer.start()
         print("\nWatcher Running in {}/\n".format(self.directory))
         #try:
-        while True:
+        while not self.handler.runstate.is_voltage_low():
             time.sleep(0.1)
             if self.handler.runstate.is_running():
                 print('Runstate is running, calling run handler')
