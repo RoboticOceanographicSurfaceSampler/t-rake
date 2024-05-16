@@ -1,4 +1,3 @@
 #!/bin/bash
 
-apt install pip3
-pip3 install -r requirements.txt
+apt install python3-watchdog
