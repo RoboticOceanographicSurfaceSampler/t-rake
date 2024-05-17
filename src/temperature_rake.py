@@ -19,7 +19,7 @@ class TemperatureRake:
       # After Start(), and code can be run, such as examining the file system
       # for a signal to stop, or accepting input from the user.
       utcDateTime = time.gmtime()
-      data_file = "{year:04d}-{month:02d}-{day:02d}_{hour:02d}.{minute:02d}.{second:02d}".format(year=utcDateTime.tm_year, month=utcDateTime.tm_mon, day=utcDateTime.tm_mday, hour=utcDateTime.tm_hour, minute=utcDateTime.tm_min, second=utcDateTime.tm_sec)
+      data_file = "{year:04d}-{month:02d}-{day:02d}_{hour:02d}.{minute:02d}.{second:02d}.csv".format(year=utcDateTime.tm_year, month=utcDateTime.tm_mon, day=utcDateTime.tm_mday, hour=utcDateTime.tm_hour, minute=utcDateTime.tm_min, second=utcDateTime.tm_sec)
 
       chip.Start(10, "/trake/data", data_file)
 
@@ -31,6 +31,8 @@ class TemperatureRake:
           power_low = chip.ReadPowerLow()
 
           if power_low != 0:
+            if self.debug:
+              print('Data acquisition reports low voltage, stopping')
             self.runstate.voltageLow = True
       except KeyboardInterrupt:
         pass
@@ -40,6 +42,8 @@ class TemperatureRake:
 
   def SetConversionScaleForAllChannels(self, chip):
     # Write an input range of +-2.5V to all channels.
+    if self.debug:
+      print('Setting +-2.5V range for all channels')
     range = AD7616.Range.PLUS_MINUS_2_5V.value << 6 | AD7616.Range.PLUS_MINUS_2_5V.value << 4 | AD7616.Range.PLUS_MINUS_2_5V.value << 2 | AD7616.Range.PLUS_MINUS_2_5V.value
     chip.WriteRegister(AD7616.Register.RANGEA_0_3.value, range)   # Input range for A-side channels 0-3.
     chip.WriteRegister(AD7616.Register.RANGEA_4_7.value, range)   # Input range for A-side channels 4-7.
@@ -55,7 +59,8 @@ class TemperatureRake:
     # Note that the two arrays must be the same size.
     # Note that all values in both arrays are limited to physical channels 0-7 plus
     #      8 (Vcc), 9 (Valdo), and 11 (self-test).  Thus, they fit in a 4-bit field.
-    print("Defining conversion sequence")
+    if self.debug:
+      print("Defining conversion sequence")
     # Default mapping, including Vcc and Valdo
     #Achannels = [0, 1, 2, 3, 4, 5, 6, 7, 8]
     #Bchannels = [0, 1, 2, 3, 4, 5, 6, 7, 9]
