@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import RPi.GPIO as GPIO
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -98,6 +99,8 @@ class DeployHandler(FileSystemEventHandler):
         os.remove(executeFilePath)
 
 
+POWER_LOW_Pin =  27     # Broadcom pin 27 (Pi pin 13)
+
 class Watcher:
 
     def __init__(self, runHandler):
@@ -117,6 +120,14 @@ class Watcher:
                 print('Runstate is running, calling run handler')
                 self.runHandler(self.handler.runstate)
                 self.handler.runstate.Reset()
+
+            # Capture the low-voltage state.
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(POWER_LOW_Pin, GPIO.IN)
+            if GPIO.input(POWER_LOW_Pin):
+                self.handler.runstate.voltageLow = True
+            GPIO.cleanup()
+
         #except:
         #    self.observer.stop()
         self.observer.join()

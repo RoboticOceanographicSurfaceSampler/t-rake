@@ -60,7 +60,7 @@
 #define SPI1_MOSI_Pin 20    // Broadcom pin 20 (Pi pin 38)
 #define SPI1_MISO_Pin 19    // Broadcom pin 19 (Pi pin 35)
 
-#define POWER_LOW_Pin 27     // Broadcom pin 22 (Pi pin 13)
+#define POWER_LOW_Pin 27     // Broadcom pin 27 (Pi pin 13)
 
 //
 // This type is the handle returned by spi_initialize(), and
