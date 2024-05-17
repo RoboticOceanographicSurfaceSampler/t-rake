@@ -37,6 +37,8 @@ class TemperatureRake:
       except KeyboardInterrupt:
         pass
 
+      if self.debug:
+        print('Data acquisition stopping: is_running=' + str(self.runstate.is_running()) + ' voltage_low=' + str(self.runstate.is_voltage_low()))
       chip.Stop()
 
 
