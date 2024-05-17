@@ -122,6 +122,7 @@ class Watcher:
                 self.handler.runstate.Reset()
 
             # Capture the low-voltage state.
+            print('Capturing low voltage signal')
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(POWER_LOW_Pin, GPIO.IN)
             if GPIO.input(POWER_LOW_Pin):
