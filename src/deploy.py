@@ -19,7 +19,7 @@ def ExecuteDeploy(runstate):
 if len(sys.argv) > 1:
   debug = True
 
-watcher = Watcher(ExecuteDeploy)
+watcher = Watcher(ExecuteDeploy, debug)
 watcher.run()
 
 exit(0)

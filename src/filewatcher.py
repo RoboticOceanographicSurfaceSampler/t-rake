@@ -37,18 +37,21 @@ class RunState:
 
 
 class DeployHandler(FileSystemEventHandler):
-    def __init__(self):
+    def __init__(self, debug):
+        self.debug = debug
         self.runstate = RunState()
 
     def on_created(self, event):
-        print('File created event: ' + event.src_path)
+        if self.debug:
+            print('File created event: ' + event.src_path)
         self.handleNewOrModified(event.src_path)
 
     def on_modified(self, event):
         if event.is_directory:
             return
         
-        print('File modified event: ' + event.src_path)
+        if self.debug:
+            print('File modified event: ' + event.src_path)
         self.handleNewOrModified(event.src_path)
 
     def on_deleted(self, event):
@@ -56,7 +59,8 @@ class DeployHandler(FileSystemEventHandler):
 
     def handleNewOrModified(self, path):
         if path[-18:] == "__runfile__.deploy":
-            print('Handling new runfile, reevaluating')
+            if self.debug:
+                print('Handling new runfile, reevaluating')
             self.reevaluate(path)
         elif path[-21:] == "__immediate__.execute":
             self.executeImmediate(path)
@@ -92,7 +96,8 @@ class DeployHandler(FileSystemEventHandler):
         self.runstate.configuration = configuration
         self.runstate.running = running
         self.runstate.runChange = runChange
-        print('Run state: ' + self.runstate.configurationName + ' Running' if self.runstate.running else ' NOT Running' + ' runchange ' if self.runstate.runChange else ' NOT runchange ' + str(self.runstate.configuration))
+        if self.debug:
+            print('Run state: ' + self.runstate.configurationName + ' Running' if self.runstate.running else ' NOT Running' + ' runchange ' if self.runstate.runChange else ' NOT runchange ' + str(self.runstate.configuration))
 
     def executeImmediate(self, executeFilePath):
         # TODO - Execute the immediate command
@@ -103,39 +108,40 @@ POWER_LOW_Pin =  27     # Broadcom pin 27 (Pi pin 13)
 
 class Watcher:
 
-    def __init__(self, runHandler):
+    def __init__(self, runHandler, debug):
         self.runHandler = runHandler
+        self.debug = debug
         self.observer = Observer()
-        self.handler = DeployHandler()
+        self.handler = DeployHandler(self.debug)
         self.directory = configurationpath
 
     def run(self):
         self.observer.schedule(self.handler, self.directory, recursive=True)
         self.observer.start()
-        print("\nWatcher Running in {}/\n".format(self.directory))
+        if self.debug:
+            print("\nWatcher Running in {}/\n".format(self.directory))
         #try:
         while not self.handler.runstate.is_voltage_low():
             time.sleep(0.1)
             if self.handler.runstate.is_running():
-                print('Runstate is running, calling run handler')
+                if self.debug:
+                    print('Runstate is running, calling run handler')
                 self.runHandler(self.handler.runstate)
                 self.handler.runstate.Reset()
 
             # Capture the low-voltage state.
-            print('Capturing low voltage signal')
             GPIO.setmode(GPIO.BCM)
-            print('GPIO set to Broadcom')
             GPIO.setup(POWER_LOW_Pin, GPIO.IN)
-            print('GPIO low voltage signal set to input')
             if not GPIO.input(POWER_LOW_Pin):
-                print('GPIO detected low voltage')
+                if self.debug:
+                    print('GPIO detected low voltage')
                 self.handler.runstate.voltageLow = True
             GPIO.cleanup()
-            print('GPIO cleanup done')
 
         #except:
         #    pass
         self.observer.stop()
         self.observer.join()
-        print("\nWatcher Terminated\n")
+        if self.debug:
+            print("\nWatcher Terminated\n")
 
