@@ -127,14 +127,15 @@ class Watcher:
             print('GPIO set to Broadcom')
             GPIO.setup(POWER_LOW_Pin, GPIO.IN)
             print('GPIO low voltage signal set to input')
-            if GPIO.input(POWER_LOW_Pin):
+            if not GPIO.input(POWER_LOW_Pin):
                 print('GPIO detected low voltage')
                 self.handler.runstate.voltageLow = True
             GPIO.cleanup()
             print('GPIO cleanup done')
 
         #except:
-        #    self.observer.stop()
+        #    pass
+        self.observer.stop()
         self.observer.join()
         print("\nWatcher Terminated\n")
 
