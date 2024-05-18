@@ -81,10 +81,15 @@ class DeployHandler(FileSystemEventHandler):
                     configName = runData['configurationName']
                     fullpathname = configurationpath + '/' + configName + ".json"
                     if os.path.isfile(fullpathname):
+                        if self.debug:
+                            print('Using configuration file ' + fullpathname)
                         with open(fullpathname, 'r') as configfile:
                             configurationName = configName
                             configuration = json.load(configfile)
                             running = True
+                    else:
+                        if self.debug:
+                            print('Configuration file ' + fullpathname + ' does not exist')
         except Exception:
             pass
 

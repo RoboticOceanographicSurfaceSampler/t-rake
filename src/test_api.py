@@ -136,9 +136,10 @@ with AD7616(print_diagnostic=False) as chip:
   try:
     power_low = 0
 
-    while power_low == 0:
+    while True:
       time.sleep(1)
       power_low = chip.ReadPowerLow()
+      print('Voltage low signal is ' + str(power_low))
   except KeyboardInterrupt:
     pass
 

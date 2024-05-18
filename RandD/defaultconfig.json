@@ -4,6 +4,6 @@
         "Bchannels": [4, 5, 6, 7, 0, 1, 2, 3]
     },
     "averagecount": 10,
-    "sampleperiodms": 1,
+    "sampleperiodms": 2,
     "datafolder": "/trake/data"
 }

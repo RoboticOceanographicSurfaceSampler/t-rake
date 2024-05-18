@@ -632,7 +632,8 @@ void* DoDataAcquisition(void* vargp)
         nextticktime_ns = nextticktime_ns + AcquisitionPeriod_ns;
         while (nextticktime_ns < now_ns) {
             nextticktime_ns = nextticktime_ns + AcquisitionPeriod_ns;
-            printf("Next tick in the past, now = %llu us, new next tick is %llu us\n", (now_ns-starttime_ns)/1000, (nextticktime_ns-starttime_ns)/1000);
+            if (PRINT_DIAG(self))
+                printf("Next tick in the past, now = %llu us, new next tick is %llu us\n", (now_ns-starttime_ns)/1000, (nextticktime_ns-starttime_ns)/1000);
         }
 
         timeleftinperiod_ns = nextticktime_ns - now_ns;
