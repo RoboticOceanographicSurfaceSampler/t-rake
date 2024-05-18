@@ -76,13 +76,8 @@ typedef struct {
 } self_t;
 
 #define PRINT_DIAG_FLAG 0x1
-#define VOLTAGE_LOW_FLAG 0x2
 
 #define PRINT_DIAG(x) (x).spi_flags & PRINT_DIAG_FLAG
-#define VOLTAGE_LOW(x) (x).spi_flags & VOLTAGE_LOW_FLAG
-
-#define SET_FLAG(x, f) (x).spi_flags |= (f)
-#define RESET_FLAG(x, f) (x).spi_flags &= ~(f)
 
 
 static self_t spidef = {};
@@ -90,7 +85,7 @@ static self_t spidefault = {0, 0, 0, 0, 0};
 
 static int acquiring = 0;                   // Set when DoDataAcquisition enters, cleared when it leaves.
 static int voltage_low = 0;                 // Set to nonzero when low voltage condition is true.
-
+static bool debug = false;                  // Set to true to allow console logging.
 //
 // A call to spi_nitialize() is required before any other call.
 // Initialize memory and the GPIO library, and condition the chip for operation.
@@ -632,7 +627,7 @@ void* DoDataAcquisition(void* vargp)
         nextticktime_ns = nextticktime_ns + AcquisitionPeriod_ns;
         while (nextticktime_ns < now_ns) {
             nextticktime_ns = nextticktime_ns + AcquisitionPeriod_ns;
-            if (PRINT_DIAG(self))
+            if (debug)
                 printf("Next tick in the past, now = %llu us, new next tick is %llu us\n", (now_ns-starttime_ns)/1000, (nextticktime_ns-starttime_ns)/1000);
         }
 
@@ -700,6 +695,8 @@ void spi_start(self_t self, unsigned period, unsigned averagecount, char* path, 
 
     AcquisitionPeriod_ms = period;
     AverageCount = averagecount;
+    debug = PRINT_DIAG(self);
+
     quit = 0;
     pthread_create(&thread_id, NULL, DoDataAcquisition, NULL);
 }
