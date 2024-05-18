@@ -1,3 +1,9 @@
 {
-    
+    "channelmap": {
+        "Achannels": [3, 2, 1, 0, 6, 7, 5, 4],
+        "Bchannels": [4, 5, 6, 7, 0, 1, 2, 3]
+    },
+    "averagecount": 10,
+    "sampleperiodms": 1,
+    "datafolder": "/trake/data"
 }

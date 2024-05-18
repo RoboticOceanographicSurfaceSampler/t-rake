@@ -7,6 +7,8 @@ class TemperatureRake:
     self.debug = debug
 
   def Run(self):
+    configuration = self.runstate.get_configuration()
+
     with AD7616(print_diagnostic=False) as chip:
       self.SetConversionScaleForAllChannels(chip)
 
@@ -19,9 +21,21 @@ class TemperatureRake:
       # After Start(), and code can be run, such as examining the file system
       # for a signal to stop, or accepting input from the user.
       utcDateTime = time.gmtime()
-      data_file = "{year:04d}-{month:02d}-{day:02d}_{hour:02d}.{minute:02d}.{second:02d}.csv".format(year=utcDateTime.tm_year, month=utcDateTime.tm_mon, day=utcDateTime.tm_mday, hour=utcDateTime.tm_hour, minute=utcDateTime.tm_min, second=utcDateTime.tm_sec)
+      datafile = "{year:04d}-{month:02d}-{day:02d}_{hour:02d}.{minute:02d}.{second:02d}.csv".format(year=utcDateTime.tm_year, month=utcDateTime.tm_mon, day=utcDateTime.tm_mday, hour=utcDateTime.tm_hour, minute=utcDateTime.tm_min, second=utcDateTime.tm_sec)
 
-      chip.Start(10, "/trake/data", data_file)
+      averagecount = 10
+      if 'averagecount' in configuration:
+        averagecount = configuration['averagecount']
+
+      sampleperiodms = 1
+      if 'sampleperiodms' in configuration:
+        sampleperiodms = configuration['sampleperiodms']
+
+      datafolder = "/trake/data"
+      if 'datafolder' in configuration:
+        datafolder = configuration['datafolder']
+
+      chip.Start(sampleperiodms, averagecount, datafolder, datafile)
 
       try:
         power_low = 0
@@ -72,6 +86,13 @@ class TemperatureRake:
     # 2. Board3 and Board4 are reversed
     Achannels = [3, 2, 1, 0, 6, 7, 5, 4]
     Bchannels = [4, 5, 6, 7, 0, 1, 2, 3]
+
+    configuration = self.runstate.get_configuration()
+    if 'channelmap' in configuration:
+      if 'Achannels' in configuration['channelmap']:
+        Achannels = configuration['channelmap']['Achannels']
+      if 'Bchannels' in configuration['channelmap']:
+        Bchannels = configuration['channelmap']['Bchannels']
 
     chip.DefineSequence(Achannels, Bchannels)
 

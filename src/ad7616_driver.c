@@ -548,6 +548,7 @@ unsigned spi_convertpair(self_t self, unsigned channelA, unsigned channelB)
 static char TimeColumnName[FilePathLength];     // Column header for time stamp column.
 static char AcquisitionFilePath[FilePathLength];// Full path to filename.
 static unsigned long long AcquisitionPeriod_ms = 10;           // Set by Start().
+static unsigned AverageCount = 1;                              // Set by Start().
 static int quit = 0;                            // Cleared by Start(), set by Stop().  The thread stops when set.
 
 void* DoDataAcquisition(void* vargp)
@@ -663,7 +664,7 @@ void* DoDataAcquisition(void* vargp)
 // Returns: Nothing.
 //
 static pthread_t thread_id;
-void spi_start(self_t self, unsigned period, char* path, char* filename)
+void spi_start(self_t self, unsigned period, unsigned averagecount, char* path, char* filename)
 {
     if (thread_id != 0)
     {
@@ -697,6 +698,7 @@ void spi_start(self_t self, unsigned period, char* path, char* filename)
     strncat(TimeColumnName, " + ms", 6);
 
     AcquisitionPeriod_ms = period;
+    AverageCount = averagecount;
     quit = 0;
     pthread_create(&thread_id, NULL, DoDataAcquisition, NULL);
 }
