@@ -85,7 +85,7 @@ static self_t spidefault = {0, 0, 0, 0, 0};
 
 static int acquiring = 0;                   // Set when DoDataAcquisition enters, cleared when it leaves.
 static int voltage_low = 0;                 // Set to nonzero when low voltage condition is true.
-static int debug = false;                   // Set to true to allow console logging.
+static int debug = 0;                       // Set to true to allow console logging.
 //
 // A call to spi_nitialize() is required before any other call.
 // Initialize memory and the GPIO library, and condition the chip for operation.
