@@ -19,7 +19,7 @@ def ExecuteDeploy(runstate):
 debug = False
 if len(sys.argv) > 1:
   debug = True
-  if sys.argv[0] == 'driver':
+  if sys.argv[1] == 'driver':
     debugdriver = True
 
 watcher = Watcher(ExecuteDeploy, debug, debugdriver)
