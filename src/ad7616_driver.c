@@ -701,7 +701,7 @@ void spi_start(self_t self, unsigned period, unsigned averagecount, char* path, 
         strncpy(AcquisitionFilePath, "./trake.csv", FilePathLength);
     }
     if (PRINT_DIAG(self))
-        printf("Starting thread with period %d, saving data to %s\n", period, AcquisitionFilePath);
+        printf("Starting thread with period %d, average %d, saving data to %s\n", period, averagecount, AcquisitionFilePath);
 
     strncpy(TimeColumnName, filename, FilePathLength);
     strncat(TimeColumnName, " + ms", 6);
@@ -710,8 +710,64 @@ void spi_start(self_t self, unsigned period, unsigned averagecount, char* path, 
     AverageCount = averagecount;
     debug = PRINT_DIAG(self);
 
+
+    struct sched_param param;
+    pthread_attr_t attr;
+    pthread_t thread;
+    int ret;
+
+    /* Lock memory */
+    if(mlockall(MCL_CURRENT|MCL_FUTURE) == -1) {
+        if (PRINT_DIAG(self))
+            printf("mlockall failed: %m\n");
+        exit(-2);
+    }
+
+    /* Initialize pthread attributes (default values) */
+    ret = pthread_attr_init(&attr);
+    if (ret) {
+        if (PRINT_DIAG(self))
+            printf("init pthread attributes failed\n");
+        goto out;
+    }
+
+    /* Set a specific stack size  */
+    ret = pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN);
+    if (ret) {
+        if (PRINT_DIAG(self))
+            printf("pthread setstacksize failed\n");
+        goto out;
+    }
+
+    /* Set scheduler policy and priority of pthread */
+    ret = pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+    if (ret) {
+        if (PRINT_DIAG(self))
+            printf("pthread setschedpolicy failed\n");
+        goto out;
+    }
+
+    param.sched_priority = 80;
+    ret = pthread_attr_setschedparam(&attr, &param);
+    if (ret) {
+        if (PRINT_DIAG(self))
+            printf("pthread setschedparam failed\n");
+        goto out;
+    }
+
+    /* Use scheduling parameters of attr */
+    ret = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+    if (ret) {
+        if (PRINT_DIAG(self))
+            printf("pthread setinheritsched failed\n");
+        goto out;
+    }
+
+    /* Create a pthread with specified attributes */
     quit = 0;
-    pthread_create(&thread_id, NULL, DoDataAcquisition, NULL);
+    pthread_create(&thread_id, &attr, DoDataAcquisition, NULL);
+ 
+out:
 }
 
 //
