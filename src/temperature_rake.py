@@ -9,7 +9,7 @@ class TemperatureRake:
   def Run(self):
     configuration = self.runstate.get_configuration()
 
-    with AD7616(print_diagnostic=False) as chip:
+    with AD7616(print_diagnostic=self.debug) as chip:
       self.SetConversionScaleForAllChannels(chip)
 
       # Define a conversion sequence.  This will apply from this point on.

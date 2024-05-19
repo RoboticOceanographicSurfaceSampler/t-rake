@@ -45,8 +45,9 @@ class DeployHandler(FileSystemEventHandler):
         The acquisition system is started when the deploy file
         is created or modified, and stopped when the deplpy file is deleted.
     """
-    def __init__(self, debug):
+    def __init__(self, debug, debugdriver):
         self.debug = debug
+        self.debugdriver = debugdriver
         self.runstate = RunState()
 
         # If the file exists at startup, run with it.
@@ -126,11 +127,12 @@ POWER_LOW_Pin =  27     # Broadcom pin 27 (Pi pin 13)
 
 class Watcher:
 
-    def __init__(self, runHandler, debug):
+    def __init__(self, runHandler, debug, debugdriver):
         self.runHandler = runHandler
         self.debug = debug
+        self.debugdriver = debugdriver
         self.observer = Observer()
-        self.handler = DeployHandler(self.debug)
+        self.handler = DeployHandler(self.debug, self.debugdriver)
         self.directory = configurationpath
 
     def run(self):
