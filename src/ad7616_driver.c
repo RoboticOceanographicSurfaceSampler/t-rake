@@ -543,11 +543,11 @@ unsigned spi_convertpair(self_t self, unsigned channelA, unsigned channelB)
 // Returns: An opaque pointer to the returned value.  Currently NULL.
 //
 #define FilePathLength 1000
-static char TimeColumnName[FilePathLength];     // Column header for time stamp column.
-static char AcquisitionFilePath[FilePathLength];// Full path to filename.
-static unsigned long long AcquisitionPeriod_ms = 10;           // Set by Start().
-static unsigned AverageCount = 1;                              // Set by Start().
-static int quit = 0;                            // Cleared by Start(), set by Stop().  The thread stops when set.
+static char TimeColumnName[FilePathLength];             // Column header for time stamp column.
+static char AcquisitionFilePath[FilePathLength];        // Full path to filename.
+static unsigned long long AcquisitionPeriod_ms = 10;    // Set by Start().
+static unsigned AverageCount = 1;                       // Set by Start().
+static int quit = 0;                                    // Cleared by Start(), set by Stop().  The thread stops when set.
 
 void* DoDataAcquisition(void* vargp)
 {
@@ -576,13 +576,20 @@ void* DoDataAcquisition(void* vargp)
     }
     acquisitionFile = NULL;
 
+    if (AverageCount == 0)
+        AverageCount = 1;
+
     unsigned long long nextticktime_ns = starttime_ns;
     unsigned long long now_ns = starttime_ns + AcquisitionPeriod_ns;
     unsigned long long timeleftinperiod_ns = nextticktime_ns - now_ns;
     char samplebuffer[250];
+    unsigned averageBuffer[64];
+    for (unsigned ii = 0; ii < 64; ii++)
+        averageBuffer[ii] = 0;
+    unsigned averageIndex = AverageCount;
+
     do
     {
-
         // SequenceSize is filled out by spi_definesequence(), and is the full size, including all A and B channels.
         if (SequenceSize > 0)
         {
@@ -595,7 +602,6 @@ void* DoDataAcquisition(void* vargp)
             spi_readconversion(spidef, SequenceSize/2, conversions);
 
             // Break out A and B channels into individual 16-bit samples, with all A channels first.
-            unsigned separatedConversion[64];
             for (unsigned i = 0; i < SequenceSize / 2; i++)
             {
                 // A conversions are high-order, B are low-order.  See page 33 of 50 in AD7616 (Rev. 0)
@@ -603,32 +609,40 @@ void* DoDataAcquisition(void* vargp)
                 unsigned BConv = conversions[i] & 0xffff;
                 AConv = (AConv + 0x8000) & 0xffff;
                 BConv = (BConv + 0x8000) & 0xffff;
-                separatedConversion[i] = AConv;
-                separatedConversion[i + (SequenceSize / 2)] = BConv;
+                averageBuffer[i] += AConv;
+                averageBuffer[i + (SequenceSize / 2)] += BConv;
             }
 
-            // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
-            char* formatBuffer = samplebuffer;
-            int formatCount = sprintf(formatBuffer, "%llu(%llu)", ((convert_ns-starttime_ns) / 1000), (timeleftinperiod_ns / 1000));
-            if (formatCount >= 0)
+            --averageIndex;
+            if (averageIndex == 0)
             {
-                formatBuffer += formatCount;
-                for (unsigned i = 0; i < SequenceSize; i++)
+                // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
+                char* formatBuffer = samplebuffer;
+                int formatCount = sprintf(formatBuffer, "%llu(%llu)", ((convert_ns-starttime_ns) / 1000), (timeleftinperiod_ns / 1000));
+                if (formatCount >= 0)
                 {
-                    formatCount = sprintf(formatBuffer, ",%d", separatedConversion[i]);
-                    if (formatCount < 0)
-                        i = SequenceSize;
-                    else
-                        formatBuffer += formatCount;
+                    formatBuffer += formatCount;
+                    for (unsigned i = 0; i < SequenceSize; i++)
+                    {
+                        formatCount = sprintf(formatBuffer, ",%d", averageBuffer[i] / AverageCount);
+                        if (formatCount < 0)
+                            i = SequenceSize;
+                        else
+                            formatBuffer += formatCount;
+                    }
+                    formatCount = sprintf(formatBuffer, "\n");
+
+                    acquisitionFile = fopen(AcquisitionFilePath, "a");
+                    fprintf(acquisitionFile, samplebuffer);
+                    fclose(acquisitionFile);
+                    acquisitionFile = NULL;
                 }
-                formatCount = sprintf(formatBuffer, "\n");
 
-                acquisitionFile = fopen(AcquisitionFilePath, "a");
-                fprintf(acquisitionFile, samplebuffer);
-                fclose(acquisitionFile);
-                acquisitionFile = NULL;
+                averageIndex = AverageCount;
+
+                for (unsigned ii = 0; ii < 64; ii++)
+                    averageBuffer[ii] = 0;
             }
-
         }
 
         // Capture the low-voltage state.
@@ -652,6 +666,8 @@ void* DoDataAcquisition(void* vargp)
         // printf("Conversion time was %llu ns, sleeping %llu ns\n", (AcquisitiontPeriod_ns - timeleftinperiod_ns), timeleftinperiod_ns);
         usleep(timeleftinperiod_ns / 1000);
     } while (!quit);
+
+    free(averageBuffer);
 
     // Signal the acquisition thread is stopped.
     acquiring = 0;
