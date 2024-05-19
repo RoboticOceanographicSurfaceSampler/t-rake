@@ -10,6 +10,9 @@ configurationpath = '/trake/configuration'
 
 
 class RunState:
+    """ Carrier object that contains the state of the current
+        run of the acquisition system.
+    """
     def __init__(self):
         self.Reset()
 
@@ -37,9 +40,19 @@ class RunState:
 
 
 class DeployHandler(FileSystemEventHandler):
+    """ A filesystem event handler object customized to watch for
+        the deploy file being created, deleted, or modified.
+        The acquisition system is started when the deploy file
+        is created or modified, and stopped when the deplpy file is deleted.
+    """
     def __init__(self, debug):
         self.debug = debug
         self.runstate = RunState()
+
+        # If the file exists at startup, run with it.
+        deployFile = configurationpath + '/' + '__runfile__.deploy'
+        if os.path.isfile(deployFile):
+            self.handleNewOrModified(deployFile)
 
     def on_created(self, event):
         if self.debug:
