@@ -16,12 +16,13 @@ def ExecuteDeploy(runstate):
 """
     Backend temperature rake deployment.
 """
+debug = False
 if len(sys.argv) > 1:
   debug = True
   if sys.argv[0] == 'driver':
     debugdriver = True
 
-watcher = Watcher(ExecuteDeploy, debug)
+watcher = Watcher(ExecuteDeploy, debug, debugdriver)
 watcher.run()
 
 exit(0)
