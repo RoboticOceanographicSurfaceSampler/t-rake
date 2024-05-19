@@ -667,8 +667,6 @@ void* DoDataAcquisition(void* vargp)
         usleep(timeleftinperiod_ns / 1000);
     } while (!quit);
 
-    free(averageBuffer);
-
     // Signal the acquisition thread is stopped.
     acquiring = 0;
     return NULL;    
