@@ -716,7 +716,6 @@ void spi_start(self_t self, unsigned period, unsigned averagecount, char* path, 
 
     struct sched_param param;
     pthread_attr_t attr;
-    pthread_t thread;
     int ret;
 
     /* Lock memory */
