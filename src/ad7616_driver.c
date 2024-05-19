@@ -38,6 +38,7 @@
 #include <time.h>
 #include <string.h>
 #include <pthread.h>
+#include <sched.h>
 
 #include <pigpio.h>
 
