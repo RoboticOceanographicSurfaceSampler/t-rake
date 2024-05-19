@@ -576,6 +576,7 @@ void* DoDataAcquisition(void* vargp)
     unsigned long long nextticktime_ns = starttime_ns;
     unsigned long long now_ns = starttime_ns + AcquisitionPeriod_ns;
     unsigned long long timeleftinperiod_ns = nextticktime_ns - now_ns;
+    char samplebuffer[250];
     do
     {
 
@@ -604,15 +605,27 @@ void* DoDataAcquisition(void* vargp)
             }
 
             // Open the previous file and append this sample line to it.  Always close the file to flush to disk.
-            acquisitionFile = fopen(AcquisitionFilePath, "a");
-            fprintf(acquisitionFile, "%llu(%llu)", ((convert_ns-starttime_ns) / 1000), (timeleftinperiod_ns / 1000));
-            for (unsigned i = 0; i < SequenceSize; i++)
+            char* formatBuffer = samplebuffer;
+            int formatCount = sprintf(formatBuffer, "%llu(%llu)", ((convert_ns-starttime_ns) / 1000), (timeleftinperiod_ns / 1000));
+            if (formatCount >= 0)
             {
-                fprintf(acquisitionFile, ",%d", separatedConversion[i]);
+                formatBuffer += formatCount;
+                for (unsigned i = 0; i < SequenceSize; i++)
+                {
+                    formatCount = sprintf(formatBuffer, ",%d", separatedConversion[i]);
+                    if (formatCount < 0)
+                        i = SequenceSize;
+                    else
+                        formatBuffer += formatCount;
+                }
+                formatCount = sprintf(formatBuffer, "\n");
+
+                acquisitionFile = fopen(AcquisitionFilePath, "a");
+                fprintf(acquisitionFile, samplebuffer);
+                fclose(acquisitionFile);
+                acquisitionFile = NULL;
             }
-            fprintf(acquisitionFile, "\n");
-            fclose(acquisitionFile);
-            acquisitionFile = NULL;
+
         }
 
         // Capture the low-voltage state.
