@@ -2,14 +2,15 @@ import time
 from ad7616_api import AD7616
 
 class TemperatureRake:
-  def __init__(self, runstate, debug):
+  def __init__(self, runstate, debug, debugdriver):
     self.runstate = runstate
     self.debug = debug
+    self.debugdriver = debugdriver
 
   def Run(self):
     configuration = self.runstate.get_configuration()
 
-    with AD7616(print_diagnostic=self.debug) as chip:
+    with AD7616(print_diagnostic=self.debugdriver) as chip:
       self.SetConversionScaleForAllChannels(chip)
 
       # Define a conversion sequence.  This will apply from this point on.
