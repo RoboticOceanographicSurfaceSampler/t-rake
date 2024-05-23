@@ -131,7 +131,7 @@ with AD7616(print_diagnostic=False) as chip:
   # values are not allowed, only integer multiples of one millisecond.
   # After Start(), and code can be run, such as examining the file system
   # for a signal to stop, or accepting input from the user.  Sleep() is just for example.
-  chip.Start(10, "./", "trake.csv")
+  chip.Start(10, 1, "./", "trake.csv")
 
   try:
     power_low = 0
