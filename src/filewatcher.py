@@ -141,7 +141,6 @@ class Watcher:
         if self.debug:
             print("\nWatcher Running in {}/\n".format(self.directory))
         #try:
-        self.runOnStart()
         while not self.handler.runstate.is_voltage_low():
             time.sleep(0.1)
             if self.handler.runstate.is_running():
@@ -166,9 +165,3 @@ class Watcher:
         if self.debug:
             print("\nWatcher Terminated\n")
 
-    def runOnStart(self):
-        deployFile = configurationpath + '/' + '__runfile__.deploy'
-        runfileContent = '{"configurationName": "defaultconfig"}'
-        with open(deployFile, 'w') as file:
-            file.write(runfileContent)
-        self.handler.reevaluate(deployFile)
