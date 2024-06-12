@@ -167,8 +167,10 @@ class Watcher:
             print("\nWatcher Terminated\n")
 
     def runOnStart(self):
-        runfileContent = '{"configurationName": "defaultconfig"}'
         deployFile = configurationpath + '/' + '__runfile__.deploy'
+        os.remove(deployFile)
+        time.sleep(1)
+        runfileContent = '{"configurationName": "defaultconfig"}'
         with open(deployFile, 'w') as file:
             file.write(runfileContent)
 
