@@ -7,7 +7,8 @@ configurationpath = '/trake/configuration'
 deployFile = configurationpath + '/' + '__runfile__.deploy'
 
 time.sleep(5)
-os.remove(deployFile)
+if os.path.exists(deployFile):
+    os.remove(deployFile)
 
 time.sleep(5)
 runfileContent = '{"configurationName": "defaultconfig"}'
